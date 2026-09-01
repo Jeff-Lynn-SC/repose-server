@@ -91,7 +91,10 @@ function windStep(dt){
   var wx=Math.cos(windDir), wz=Math.sin(windDir);
   var ax=Math.abs(wx), az=Math.abs(wz), sx=ax/(ax+az+1e-6), sz=1-sx;
   var jxo=wx>0?1:-1, jzo=wz>0?N:-N;
-  var k=1.35*windStr*dt;
+  /* Wind works over hours, not seconds. At the old rate it took a fraction of
+     any raised ground away forty times a second, so a fresh heap was flat
+     before the machine that made it had turned round. */
+  var k=0.010*windStr*dt;
   for(var z=1;z<N-1;z++){
     for(var x=1;x<N-1;x++){
       var i=z*N+x;
@@ -256,8 +259,11 @@ function Machine(role,atGate,px,pz){
   }else{
     this.x=(rnd()*2-1)*HALF*.85; this.z=(rnd()*2-1)*HALF*.85;
   }
+  /* a summit and a ring angle whatever its purpose, so that a machine
+     which changes its mind later cannot end up steering at nothing */
+  this.ring=rnd()*6.2832; this.sx=this.x; this.sz=this.z;
   this.ang=rnd()*Math.PI*2;
-  this.load=0; this.cap=BUCKET/(CS*CS); this.state="go"; this.mode="scoop"; this.flash=0;
+  this.load=0; this.idle=0; this.cap=BUCKET/(CS*CS); this.state="go"; this.mode="scoop"; this.flash=0;
   this.boom=0.55; this.stick=-1.30; this.buck=-0.35; this.slew=0; this.stroke=rnd()*2;
   this.wt=rnd()*10; this.ph=rnd()*6.28; this.life=8+rnd()*32;
   this.moving=0; this.digging=0; this.tipping=0;
@@ -321,8 +327,8 @@ Machine.prototype.newJob=function(){
     var pa=rnd()*6.2832, pr=(0.35+rnd()*0.75)*popR;
     this.hx=Math.max(-HALF+2*CS,Math.min(HALF-2*CS,popX+Math.cos(pa)*pr));
     this.hz=Math.max(-HALF+2*CS,Math.min(HALF-2*CS,popZ+Math.sin(pa)*pr));
-    this.ux=this.hx; this.uz=this.hz;
-  }else{this.hx=hx;this.hz=hz;this.ux=ux;this.uz=uz;}
+    this.ux=this.hx; this.uz=this.hz; this.idle=1;
+  }else{this.hx=hx;this.hz=hz;this.ux=ux;this.uz=uz;this.idle=0;}
   this.tx=this.ux; this.tz=this.uz; this.state="go"; this.mode="scoop";
 };
 /* ---------------------------------------------------------
@@ -394,7 +400,8 @@ Machine.prototype.step=function(dt,self){
 
     var t=toothWorld(this);
     var groundAt=hAt(t.x,t.z);
-    var amt=this.cap*(this.mode==="scoop"?0.17:0.40)*rateMul*dt;
+    var amt=this.idle?0:this.cap*(this.mode==="scoop"?0.17:0.40)*rateMul*dt;
+    if(this.idle && this.stroke>6){ this.stroke=0; this.newJob(); }
 
     if(this.mode==="scoop"){
       var q=(this.stroke%7.0)/7.0;
@@ -403,7 +410,8 @@ Machine.prototype.step=function(dt,self){
       var bite=(0.10+0.20*Math.sin(Math.PI*q))*machLen;
       var ty=(groundAt-here-bite)/machLen+0.28;
       var k=armTo(r-P_BOOMX,ty-P_BOOMY);
-      this.tbA=k.b; this.tsA=k.s; this.tkA=-0.15-1.25*q;
+      if(this.idle){ this.tbA=0.55; this.tsA=-1.30; this.tkA=-0.35; }
+      else { this.tbA=k.b; this.tsA=k.s; this.tkA=-0.15-1.25*q; }
       /* only cuts while the teeth are actually in the ground */
       if(t.y*machLen+here <= groundAt+0.06*machLen){
         this.load+=takeFrom(t.x,t.z,0.55*CS,Math.min(amt,this.cap-this.load));
