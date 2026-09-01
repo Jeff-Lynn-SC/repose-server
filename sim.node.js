@@ -258,10 +258,10 @@ function Machine(role,atGate,px,pz){
   }
   this.ang=rnd()*Math.PI*2;
   this.load=0; this.cap=BUCKET/(CS*CS); this.state="go"; this.mode="scoop"; this.flash=0;
-  this.boom=0.12; this.stick=-1.05; this.buck=-0.95; this.slew=0; this.stroke=rnd()*2;
+  this.boom=0.55; this.stick=-1.30; this.buck=-0.35; this.slew=0; this.stroke=rnd()*2;
   this.wt=rnd()*10; this.ph=rnd()*6.28; this.life=8+rnd()*32;
   this.moving=0; this.digging=0; this.tipping=0;
-  this.tbA=0.12; this.tsA=-1.05; this.tkA=-0.95; this.slewT=0;
+  this.tbA=0.55; this.tsA=-1.30; this.tkA=-0.35; this.slewT=0;
   if(role===RAISE){
     this.sx=this.x; this.sz=this.z; this.ring=rnd()*Math.PI*2;
     this.best=hAt(this.x,this.z); this.lastH=this.best; this.check=0;
@@ -406,7 +406,7 @@ Machine.prototype.step=function(dt,self){
       this.tbA=k.b; this.tsA=k.s; this.tkA=-0.15-1.25*q;
       /* only cuts while the teeth are actually in the ground */
       if(t.y*machLen+here <= groundAt+0.06*machLen){
-        this.load+=takeFrom(t.x,t.z,1.25*CS,Math.min(amt,this.cap-this.load));
+        this.load+=takeFrom(t.x,t.z,0.55*CS,Math.min(amt,this.cap-this.load));
         this.digging=1;
         if(rnd()<9*dt*dustGate)
           puff(t.x,groundAt+0.05*machLen,t.z,(rnd()-0.5)*0.7*CS,0.25*CS,(rnd()-0.5)*0.7*CS,
@@ -425,7 +425,7 @@ Machine.prototype.step=function(dt,self){
       this.tbA=k2.b; this.tsA=k2.s; this.tkA=-1.15+1.50*r2;
       if(r2>0.25){
         var give=Math.min(amt,this.load);
-        this.load-=giveTo(t.x,t.z,1.15*CS,give);   /* only lose what the ground actually took */
+        this.load-=giveTo(t.x,t.z,0.55*CS,give);   /* only lose what the ground actually took */
         this.tipping=1;
         if(rnd()<14*dt*dustGate){
           var fy=t.y*machLen+here;
@@ -434,14 +434,14 @@ Machine.prototype.step=function(dt,self){
         }
       } else this.tipping=0;
       if(this.load<=0.02*CS){
-        if(this.load>0) this.load-=giveTo(t.x,t.z,1.15*CS,this.load);
+        if(this.load>0) this.load-=giveTo(t.x,t.z,0.55*CS,this.load);
         this.mode="scoop"; this.stroke=0; this.tipping=0;
         if(this.role===RAISE){this.ring+=0.9+rnd()*0.5; this.pickScoop();}
         else this.newJob();
       }
     }
   } else {
-    this.tbA=0.12; this.tsA=-1.05; this.tkA=-0.95; this.slewT=0;
+    this.tbA=0.55; this.tsA=-1.30; this.tkA=-0.35; this.slewT=0;
     this.digging=0; this.tipping=0;
   }
 
