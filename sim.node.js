@@ -979,7 +979,15 @@ function nearestTo(a,self){
    only leans: what a machine is comes mostly from what its neighbours were.
    This is what lets one stretch of the pit come to have a character. */
 function inheritRole(a,b){
-  var fa=(a.role===FILL)?1:0, fb=b?((b.role===FILL)?1:0):fa;
+  /* The first birth is always the other purpose. A single machine left to
+     inherit from itself would found a world of one mind, which is an accident
+     of there being nobody else about rather than anything the rules intend.
+     Once there is a pair, heredity takes over. */
+  if(machines.length<=1) return (a.role===RAISE)?FILL:RAISE;
+  var fa=(a.role===FILL)?1:0;
+  /* and a machine with nobody near by takes its second parent from the era
+     rather than from itself, for the same reason */
+  var fb=b?((b.role===FILL)?1:0):((rnd()<mixRaise)?0:1);
   var p=0.78*((fa+fb)*0.5)+0.22*(1-mixRaise);
   if(rnd()<0.04) p=1-p;                       /* the occasional oddity */
   return (rnd()<p)?FILL:RAISE;
@@ -1110,7 +1118,8 @@ module.exports={
   get machines(){return machines},
   get N(){return N}, get CS(){return CS}, get HALF(){return HALF},
   get BASE(){return BASE}, get machLen(){return machLen},
-  get mixRaise(){return mixRaise}, get reposeDeg(){return reposeDeg},
+  get mixRaise(){return mixRaise}, set mixRaise(v){mixRaise=v},
+  get reposeDeg(){return reposeDeg},
   get windStr(){return windStr}, get windDir(){return windDir},
   get maxH(){return maxH}, get gini(){return gini}, get stripped(){return stripped},
   get collapses(){return collapses},

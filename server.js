@@ -35,6 +35,7 @@ let ghSha=null, ghDirty=false, ghLast=0;
 const TICK_MS   = 100;              /* how often the world is versioned */
 const SIM_HZ    = 40;               /* the simulation's own fixed step */
 const TIME_MUL  = parseFloat(process.env.TIME_MUL || "2.4");  /* lower it on a slow machine */
+let speed = TIME_MUL;
 
 /* ---- load the simulation, the same file the browser used to run ---- */
 const ctx = require("./sim.node.js");
@@ -140,10 +141,10 @@ for(let i=0;i<ctx.h.length;i++){
 let acc=0, last=Date.now();
 function advance(){
   const now=Date.now();
-  acc += Math.min(0.25,(now-last)/1000)*TIME_MUL; last=now;
+  acc += Math.min(0.25,(now-last)/1000)*speed; last=now;
   /* never try to make up more than a tick's worth: falling behind must not
      turn into falling further behind */
-  let guard=0, budget=Math.ceil(TICK_MS/1000*SIM_HZ*TIME_MUL)+2;
+  let guard=0, budget=Math.ceil(TICK_MS/1000*SIM_HZ*Math.max(1,speed))+2;
   while(acc >= 1/SIM_HZ && guard<budget){ ctx.substep(1/SIM_HZ); ctx.evN=0; ctx.dustN=0; acc-=1/SIM_HZ; guard++; }
   if(acc > 1) acc = 0;
   version++;
@@ -238,7 +239,7 @@ const server = http.createServer((req,res)=>{
     const added=admit(id);
     res.setHeader("Content-Type","application/json");
     res.end(JSON.stringify({visitors,added,machines:ctx.machines.length,
-      world:WORLD,since:born,build:BUILD}));
+      world:WORLD,since:born,build:BUILD,speed}));
     return;
   }
   if(u.pathname==="/add"){
@@ -247,11 +248,39 @@ const server = http.createServer((req,res)=>{
       res.statusCode=403; res.end("no"); return;
     }
     const n=Math.max(0,Math.min(500,parseInt(u.searchParams.get("n")||"1",10)||0));
+    const want=u.searchParams.get("role");     /* "raise", "fill", or nothing */
     visitors+=n; ctx.targetPop=visitors;
-    for(let i=0;i<n;i++) ctx.beget();
+    for(let i=0;i<n;i++){
+      ctx.beget();
+      if(want==="raise"||want==="fill"){
+        /* purpose is inherited from whoever is standing near by, so asking for
+           one of a kind means setting it afterwards and starting it off */
+        const m=ctx.machines[ctx.machines.length-1];
+        if(m){
+          if(want==="raise"){
+            m.role=0; m.sx=m.x; m.sz=m.z; m.best=ctx.BASE; m.mark=undefined;
+            m.load=0; m.mode="scoop"; m.idle=0; m.pickScoop();
+          }else{
+            m.role=1; m.load=0; m.mode="scoop"; m.newJob();
+          }
+        }
+      }
+    }
     ghDirty=true;
     res.setHeader("Content-Type","application/json");
     res.end(JSON.stringify({visitors,machines:ctx.machines.length}));
+    return;
+  }
+  if(u.pathname==="/speed"){
+    /* 0 stops the world where it stands, which is the only way to look at it
+       properly. 1 is real time; the piece normally runs at 2.4. */
+    if(!RESET_KEY || u.searchParams.get("key")!==RESET_KEY){
+      res.statusCode=403; res.end("no"); return;
+    }
+    const x=parseFloat(u.searchParams.get("x"));
+    if(isFinite(x)) { speed=Math.max(0,Math.min(12,x)); acc=0; last=Date.now(); }
+    res.setHeader("Content-Type","application/json");
+    res.end(JSON.stringify({speed}));
     return;
   }
   if(u.pathname==="/reset"){
