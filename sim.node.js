@@ -546,7 +546,7 @@ function trackGround(a,dt){
     if(a.moving>0 && rnd()<5*dt*dustGate)
       puff(wx,h[i]+0.04*machLen,wz,-ca*0.3*CS+(rnd()-0.5)*0.3*CS,0.10*CS,-sa*0.3*CS+(rnd()-0.5)*0.3*CS,
            0.22*machLen,1.3*machLen,1.4+rnd()*1.2,0.13);
-    var give=0.16*CS*press*(1-w*0.85);
+    var give=0.02*press*(1-w*0.85);
     if(give<=0) continue;
     if(give>h[i]*0.04) give=h[i]*0.04;
     if(give<=0) continue;
