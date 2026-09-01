@@ -54,9 +54,22 @@ later.
 Without those variables it falls back to `world.json` on disk, which is what
 you want if you ever run it on a machine of your own.
 
+## Starting again
+
+Set `RESET_KEY` in the Render environment to any word you like. Then
+
+    https://<your-server>/reset?key=<that word>&pop=20
+
+empties the world and starts it again with twenty machines in it, so there is
+something to watch straight away. Leave `pop` off and it begins with nothing.
+Anyone watching is sent the new world within a second — no reload needed.
+
+Without `RESET_KEY` set, the endpoint refuses everything.
+
 ## Endpoints
 
 - `GET /join?id=<something stable per person>` — adds one machine the first
   time that id is seen, and never again. Returns the visitor count.
 - `GET /state?since=<version>` — binary. Everything if `since=0`, otherwise
   only what has changed. Gzipped if asked for.
+- `GET /reset?key=<RESET_KEY>&pop=<n>` — begins the world again.

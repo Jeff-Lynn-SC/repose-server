@@ -26,6 +26,9 @@ const GH_TOKEN = process.env.GH_TOKEN || "";
 const GH_REPO  = process.env.GH_REPO  || "";
 const GH_PATH  = process.env.GH_PATH  || "world.json";
 const GH_EVERY = parseInt(process.env.GH_EVERY || "300000", 10);   /* five minutes */
+/* Set RESET_KEY to be able to wipe the world from a URL. Leave it unset and
+   the endpoint does not exist. */
+const RESET_KEY = process.env.RESET_KEY || "";
 let ghSha=null, ghDirty=false, ghLast=0;
 const TICK_MS   = 100;              /* how often the world is versioned */
 const SIM_HZ    = 40;               /* the simulation's own fixed step */
@@ -234,6 +237,29 @@ const server = http.createServer((req,res)=>{
     res.setHeader("Content-Type","application/json");
     res.end(JSON.stringify({visitors,added,machines:ctx.machines.length,
       world:WORLD,since:born}));
+    return;
+  }
+  if(u.pathname==="/reset"){
+    if(!RESET_KEY || u.searchParams.get("key")!==RESET_KEY){
+      res.statusCode=403; res.end("no"); return;
+    }
+    /* begin again: empty sand, nobody has been, and whatever population was
+       asked for so there is something to watch straight away */
+    const pop=Math.max(0,parseInt(u.searchParams.get("pop")||"0",10)||0);
+    visitors=pop; seen=Object.create(null); born=Date.now();
+    ctx.seedRNG((Date.now()&0x7fffffff)|1);
+    ctx.simTime=0;
+    ctx.applyScale({ix:0,N:WORLDN,width:WORLD,pop:pop,vis:0.233},null,true);
+    /* every cell counts as changed, so anyone watching is sent the new world */
+    version++;
+    for(let i=0;i<ctx.h.length;i++){
+      lastQ[i]=Math.round(ctx.h[i]*CM); lastW[i]=(ctx.wear[i]*255)|0; lastR[i]=(ctx.rock[i]*255)|0;
+      changedAt[i]=version;
+    }
+    acc=0; last=Date.now(); ghDirty=true; ghLast=0;
+    console.log("world reset — "+pop+" machines");
+    res.setHeader("Content-Type","application/json");
+    res.end(JSON.stringify({reset:true,visitors,machines:ctx.machines.length}));
     return;
   }
   if(u.pathname==="/state"){
