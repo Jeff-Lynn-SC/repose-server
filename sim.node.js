@@ -140,6 +140,14 @@ var scaleIx=1;
    ========================================================= */
 var N,CS,HALF,h,h0,wear,DR,DF,BASE=3.0;
 var fieldMode=false, TRACERS=260;
+/* A bucket is a volume, not a fraction of a grid cell. Everything here used
+   to be measured in cells, which was right while a cell was under a metre.
+   With the world fixed at a kilometre a cell became 5.6 m and the bucket
+   scaled up with it while the machine stayed six metres long: every scoop
+   moved 1,395 cubic metres and set off an avalanche that destroyed the work.
+   Stored as height, this becomes BUCKET/(cell area) metres — which stays
+   right at any cell size, including one that varies. */
+var BUCKET=26;
 var reposeDeg=34, slopeMax, slopeStat, slopeDyn;
 function setRepose(d){
   reposeDeg=d; slopeMax=Math.tan(d*Math.PI/180)*CS;
@@ -249,7 +257,7 @@ function Machine(role,atGate,px,pz){
     this.x=(rnd()*2-1)*HALF*.85; this.z=(rnd()*2-1)*HALF*.85;
   }
   this.ang=rnd()*Math.PI*2;
-  this.load=0; this.cap=8*CS; this.state="go"; this.mode="scoop"; this.flash=0;
+  this.load=0; this.cap=BUCKET/(CS*CS); this.state="go"; this.mode="scoop"; this.flash=0;
   this.boom=0.12; this.stick=-1.05; this.buck=-0.95; this.slew=0; this.stroke=rnd()*2;
   this.wt=rnd()*10; this.ph=rnd()*6.28; this.life=8+rnd()*32;
   this.moving=0; this.digging=0; this.tipping=0;
@@ -287,7 +295,7 @@ Machine.prototype.relocate=function(){
   this.ring=rnd()*Math.PI*2; this.pickScoop();
 };
 Machine.prototype.newJob=function(){
-  var i,c,d,s,k,tol=0.4*CS,pull=0.045;
+  var i,c,d,s,k,tol=0.55,pull=0.045;
   var R=(rnd()<0.02)?frontier():(5+this.crowd*14)*machLen;
   function near(self){ return {x:Math.max(-HALF+2*CS,Math.min(HALF-2*CS,self.x+(rnd()*2-1)*R)),
                               z:Math.max(-HALF+2*CS,Math.min(HALF-2*CS,self.z+(rnd()*2-1)*R))}; }
@@ -386,7 +394,7 @@ Machine.prototype.step=function(dt,self){
 
     var t=toothWorld(this);
     var groundAt=hAt(t.x,t.z);
-    var amt=(this.mode==="scoop"?1.4:3.2)*CS*rateMul*dt;
+    var amt=this.cap*(this.mode==="scoop"?0.17:0.40)*rateMul*dt;
 
     if(this.mode==="scoop"){
       var q=(this.stroke%7.0)/7.0;
@@ -446,14 +454,14 @@ Machine.prototype.step=function(dt,self){
 
   if(this.role===RAISE){
     var now=hAt(this.sx,this.sz);
-    if(now>this.best){ this.best=now; if(this.mark===undefined) this.mark=now; if(now>this.mark+1.5*CS){ this.mark=now; event(3,this.sx,this.sz,now); } }
-    if(now<this.best-0.7*CS){
+    if(now>this.best){ this.best=now; if(this.mark===undefined) this.mark=now; if(now>this.mark+1.20){ this.mark=now; event(3,this.sx,this.sz,now); } }
+    if(now<this.best-0.55){
       collapses++; this.flash=1; event(0,this.sx,this.sz,this.best-now); this.best=now;
       if(rnd()<0.55) this.relocate();
     }
     this.check+=dt;
-    if(this.check>11){
-      if(now-this.lastH<0.32*CS) this.relocate();
+    if(this.check>75){
+      if(now-this.lastH<0.10) this.relocate();
       else {this.lastH=now; this.check=0;}
     }
   }
