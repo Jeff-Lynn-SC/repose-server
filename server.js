@@ -1,0 +1,252 @@
+/* ===================================================================
+   REPOSE — the world
+
+   One simulation, running here, for good. Browsers do not compute the
+   sand; they ask what it is now and draw it themselves. Each one
+   points its own camera, so everybody is looking at the same world
+   and nobody is looking at the same thing.
+
+   No dependencies. Node 18 or later.
+     node server.js            (listens on PORT, default 8080)
+   =================================================================== */
+const http = require("http");
+const zlib = require("zlib");
+const fs   = require("fs");
+const path = require("path");
+
+const PORT      = process.env.PORT || 8080;
+const STATE     = process.env.STATE_FILE || path.join(__dirname, "world.json");
+
+/* ---- where the world is kept ----
+   A free host gives you no disk that survives a restart, so the world lives in
+   the repository instead: durable, free, and every version of it is kept, which
+   means the whole history of the place can be read back later.
+   Set GH_TOKEN, GH_REPO ("owner/name") and optionally GH_PATH. */
+const GH_TOKEN = process.env.GH_TOKEN || "";
+const GH_REPO  = process.env.GH_REPO  || "";
+const GH_PATH  = process.env.GH_PATH  || "world.json";
+const GH_EVERY = parseInt(process.env.GH_EVERY || "300000", 10);   /* five minutes */
+let ghSha=null, ghDirty=false, ghLast=0;
+const TICK_MS   = 100;              /* how often the world is versioned */
+const SIM_HZ    = 40;               /* the simulation's own fixed step */
+const TIME_MUL  = parseFloat(process.env.TIME_MUL || "2.4");  /* lower it on a slow machine */
+
+/* ---- load the simulation, the same file the browser used to run ---- */
+const ctx = require("./sim.node.js");
+
+/* ---- the world ---- */
+const WORLD = 1000, WORLDN = 180;
+let visitors = 0, seen = Object.create(null), born = Date.now();
+
+async function ghGet(){
+  if(!GH_TOKEN||!GH_REPO) return null;
+  const r=await fetch("https://api.github.com/repos/"+GH_REPO+"/contents/"+GH_PATH,
+    {headers:{Authorization:"Bearer "+GH_TOKEN,"User-Agent":"repose",
+              Accept:"application/vnd.github+json"}});
+  if(r.status===404){ console.log("no world in the repository yet"); return null; }
+  if(!r.ok){ console.log("could not read the world:", r.status); return null; }
+  const j=await r.json();
+  ghSha=j.sha;
+  return JSON.parse(Buffer.from(j.content,"base64").toString("utf8"));
+}
+async function ghPut(obj){
+  if(!GH_TOKEN||!GH_REPO) return;
+  const body={ message:"the world at "+new Date().toISOString().slice(0,16).replace("T"," ")+
+                       " \u2014 "+visitors+" visitors, "+ctx.machines.length+" machines",
+               content:Buffer.from(JSON.stringify(obj)).toString("base64") };
+  if(ghSha) body.sha=ghSha;
+  const r=await fetch("https://api.github.com/repos/"+GH_REPO+"/contents/"+GH_PATH,
+    {method:"PUT",headers:{Authorization:"Bearer "+GH_TOKEN,"User-Agent":"repose",
+      Accept:"application/vnd.github+json","Content-Type":"application/json"},
+     body:JSON.stringify(body)});
+  if(r.ok){ const j=await r.json(); ghSha=j.content.sha; ghDirty=false; }
+  else console.log("could not write the world:", r.status, (await r.text()).slice(0,140));
+}
+function applySaved(j){
+  visitors = j.visitors|0; seen = j.seen || Object.create(null); born = j.born || Date.now();
+  ctx.applyScale({ix:0,N:WORLDN,width:WORLD,pop:Math.max(0,visitors),vis:0.233},null,true);
+  if(j.h){
+    const raw=Buffer.from(j.h,"base64");
+    const h=new Float32Array(raw.buffer,raw.byteOffset,raw.byteLength/4);
+    if(h.length===ctx.h.length) ctx.h.set(h);
+  }
+  if(j.simTime) ctx.simTime=j.simTime;
+  console.log("world restored:", visitors, "visitors,", ctx.machines.length, "machines");
+}
+function snapshot(){
+  return { visitors, seen, born, simTime: ctx.simTime,
+           h: Buffer.from(new Uint8Array(ctx.h.buffer)).toString("base64") };
+}
+function loadState(){
+  try{
+    const j = JSON.parse(fs.readFileSync(STATE,"utf8"));
+    visitors = j.visitors|0; seen = j.seen || Object.create(null); born = j.born || Date.now();
+    ctx.applyScale({ix:0,N:WORLDN,width:WORLD,pop:Math.max(0,visitors),vis:0.233},null,true);
+    if(j.h){
+      const h = Float32Array.from(Buffer.from(j.h,"base64").buffer ? new Float32Array(new Uint8Array(Buffer.from(j.h,"base64")).buffer) : []);
+      if(h.length===ctx.h.length) ctx.h.set(h);
+    }
+    if(j.simTime) ctx.simTime = j.simTime;
+    console.log("world restored:", visitors, "visitors,", ctx.machines.length, "machines");
+  }catch(e){
+    ctx.applyScale({ix:0,N:WORLDN,width:WORLD,pop:0,vis:0.233},null,true);
+    console.log("new world");
+  }
+}
+function saveState(){
+  try{
+    fs.writeFileSync(STATE, JSON.stringify({
+      visitors, seen, born, simTime: ctx.simTime,
+      h: Buffer.from(new Uint8Array(ctx.h.buffer)).toString("base64")
+    }));
+  }catch(e){ console.error("could not save:", e.message); }
+}
+loadState();                 /* something to be going on with */
+if(GH_TOKEN&&GH_REPO){
+  ghGet().then(j=>{ if(j) applySaved(j); }).catch(e=>console.log("repository unreachable:",e.message));
+}
+setInterval(()=>{
+  if(GH_TOKEN&&GH_REPO){
+    /* only when something has happened, and never faster than GH_EVERY */
+    if(ghDirty && Date.now()-ghLast>GH_EVERY){ ghLast=Date.now(); ghPut(snapshot()).catch(()=>{}); }
+  } else saveState();
+}, 30000);
+async function goodbye(){
+  try{ if(GH_TOKEN&&GH_REPO&&ghDirty) await ghPut(snapshot()); else saveState(); }catch(e){}
+  process.exit(0);
+}
+process.on("SIGTERM", goodbye);
+process.on("SIGINT",  goodbye);
+
+/* ---- what has changed, and when ----
+   Every cell remembers the version at which it last moved. A browser
+   says which version it last saw and gets exactly what it has missed,
+   however long it has been away. */
+let version = 1;
+const changedAt = new Int32Array(ctx.N*ctx.N);
+const lastQ     = new Int16Array(ctx.N*ctx.N);
+const lastW     = new Uint8Array(ctx.N*ctx.N);
+const lastR     = new Uint8Array(ctx.N*ctx.N);
+const CM = 100;                                   /* heights to the centimetre */
+for(let i=0;i<ctx.h.length;i++){
+  lastQ[i]=Math.round(ctx.h[i]*CM); lastW[i]=ctx.wear[i]*255; lastR[i]=ctx.rock[i]*255;
+}
+
+let acc=0, last=Date.now();
+function advance(){
+  const now=Date.now();
+  acc += Math.min(0.25,(now-last)/1000)*TIME_MUL; last=now;
+  /* never try to make up more than a tick's worth: falling behind must not
+     turn into falling further behind */
+  let guard=0, budget=Math.ceil(TICK_MS/1000*SIM_HZ*TIME_MUL)+2;
+  while(acc >= 1/SIM_HZ && guard<budget){ ctx.substep(1/SIM_HZ); ctx.evN=0; ctx.dustN=0; acc-=1/SIM_HZ; guard++; }
+  if(acc > 1) acc = 0;
+  version++;
+  ghDirty=true;
+  for(let i=0;i<ctx.h.length;i++){
+    const q=Math.round(ctx.h[i]*CM), w=(ctx.wear[i]*255)|0, r=(ctx.rock[i]*255)|0;
+    if(q!==lastQ[i]||w!==lastW[i]||r!==lastR[i]){
+      lastQ[i]=q; lastW[i]=w; lastR[i]=r; changedAt[i]=version;
+    }
+  }
+}
+let busy=0, ticks=0;
+setInterval(()=>{
+  const t0=Date.now(); advance(); busy+=Date.now()-t0; ticks++;
+}, TICK_MS);
+/* if it cannot keep up it does not stall: the world simply advances slower,
+   and this says so once a minute */
+setInterval(()=>{
+  if(!ticks) return;
+  const load=busy/(ticks*TICK_MS);
+  console.log(new Date().toISOString().slice(0,19)+"  "+ctx.machines.length+" machines, "+
+    visitors+" visitors, load "+(load*100).toFixed(0)+"%"+(load>0.85?"  (running behind)":""));
+  busy=0; ticks=0;
+}, 60000);
+setInterval(()=>{ ctx.stats(); }, 2000);
+
+/* ---- the world, packed ---- */
+function clamp16(v){ return v<-32768?-32768:(v>32767?32767:v); }
+function pack(since){
+  const m = ctx.machines, n = m.length;
+  let count=0;
+  for(let i=0;i<changedAt.length;i++) if(changedAt[i]>since) count++;
+  /* header: version u32, N u16, machines u16, then seven floats
+     (cell, half, base, machine length, raise share, repose, wind),
+     then visitors u32 and changed-cell count u32 = 44 bytes */
+  const head = 44, mach = n*17, cells = count*8;
+  const b = Buffer.alloc(head+mach+cells);
+  let o=0;
+  b.writeUInt32LE(version,o); o+=4;
+  b.writeUInt16LE(ctx.N,o); o+=2;
+  b.writeUInt16LE(n,o); o+=2;
+  b.writeFloatLE(ctx.CS,o); o+=4;
+  b.writeFloatLE(ctx.HALF,o); o+=4;
+  b.writeFloatLE(ctx.BASE,o); o+=4;
+  b.writeFloatLE(ctx.machLen,o); o+=4;
+  b.writeFloatLE(ctx.mixRaise,o); o+=4;
+  b.writeFloatLE(ctx.reposeDeg,o); o+=4;
+  b.writeFloatLE(ctx.windStr,o); o+=4;
+  b.writeUInt32LE(visitors,o); o+=4;
+  b.writeUInt32LE(count,o); o+=4;
+  const TAU=Math.PI*2;
+  const ang=a=>{ let x=a%TAU; if(x>Math.PI)x-=TAU; if(x<-Math.PI)x+=TAU; return clamp16(Math.round(x/Math.PI*32767)); };
+  for(let i=0;i<n;i++){
+    const a=m[i];
+    b.writeInt16LE(clamp16(Math.round(a.x/ctx.HALF*32767)),o); o+=2;
+    b.writeInt16LE(clamp16(Math.round(a.z/ctx.HALF*32767)),o); o+=2;
+    b.writeInt16LE(ang(a.ang),o); o+=2;
+    b.writeInt16LE(ang(a.boom),o); o+=2;
+    b.writeInt16LE(ang(a.stick),o); o+=2;
+    b.writeInt16LE(ang(a.buck),o); o+=2;
+    b.writeInt16LE(ang(a.slew),o); o+=2;
+    b.writeUInt8(Math.max(0,Math.min(255,Math.round(a.load/a.cap*255))),o); o+=1;
+    b.writeUInt8(a.role,o); o+=1;
+    b.writeUInt8(Math.max(0,Math.min(255,Math.round(a.flash*255))),o); o+=1;
+  }
+  for(let i=0;i<changedAt.length;i++){
+    if(changedAt[i]<=since) continue;
+    b.writeUInt32LE(i,o); o+=4;
+    b.writeInt16LE(clamp16(lastQ[i]),o); o+=2;
+    b.writeUInt8(lastW[i],o); o+=1;
+    b.writeUInt8(lastR[i],o); o+=1;
+  }
+  return b;
+}
+
+/* ---- one machine per person, once ---- */
+function admit(id){
+  if(!id || seen[id]) return false;
+  seen[id]=1; visitors++; ghDirty=true;
+  ctx.targetPop = visitors;
+  if(typeof ctx.beget==="function") ctx.beget();
+  return true;
+}
+
+const server = http.createServer((req,res)=>{
+  if(process.env.TRACE) console.log("  <- "+req.method+" "+req.url);
+  const u = new URL(req.url,"http://x");
+  res.setHeader("Access-Control-Allow-Origin","*");
+  res.setHeader("Cache-Control","no-store");
+  if(u.pathname==="/join"){
+    const id=u.searchParams.get("id")||"";
+    const added=admit(id);
+    res.setHeader("Content-Type","application/json");
+    res.end(JSON.stringify({visitors,added,machines:ctx.machines.length,
+      world:WORLD,since:born}));
+    return;
+  }
+  if(u.pathname==="/state"){
+    const since=parseInt(u.searchParams.get("since")||"0",10)||0;
+    const body=pack(since);
+    const accept=req.headers["accept-encoding"]||"";
+    res.setHeader("Content-Type","application/octet-stream");
+    if(/gzip/.test(accept)){
+      res.setHeader("Content-Encoding","gzip");
+      res.end(zlib.gzipSync(body,{level:5}));
+    } else res.end(body);
+    return;
+  }
+  res.statusCode=404; res.end("repose");
+});
+server.listen(PORT,()=>console.log("repose listening on "+PORT));
