@@ -29,6 +29,8 @@ const GH_EVERY = parseInt(process.env.GH_EVERY || "300000", 10);   /* five minut
 /* Set RESET_KEY to be able to wipe the world from a URL. Leave it unset and
    the endpoint does not exist. */
 const RESET_KEY = process.env.RESET_KEY || "";
+/* so you can tell at a glance which simulation is actually running */
+const BUILD = "2026-09-01 · fillers wait · wind slowed · bucket 26m3";
 let ghSha=null, ghDirty=false, ghLast=0;
 const TICK_MS   = 100;              /* how often the world is versioned */
 const SIM_HZ    = 40;               /* the simulation's own fixed step */
@@ -236,7 +238,20 @@ const server = http.createServer((req,res)=>{
     const added=admit(id);
     res.setHeader("Content-Type","application/json");
     res.end(JSON.stringify({visitors,added,machines:ctx.machines.length,
-      world:WORLD,since:born}));
+      world:WORLD,since:born,build:BUILD}));
+    return;
+  }
+  if(u.pathname==="/add"){
+    /* for looking at it: puts machines in without waiting for visitors */
+    if(!RESET_KEY || u.searchParams.get("key")!==RESET_KEY){
+      res.statusCode=403; res.end("no"); return;
+    }
+    const n=Math.max(0,Math.min(500,parseInt(u.searchParams.get("n")||"1",10)||0));
+    visitors+=n; ctx.targetPop=visitors;
+    for(let i=0;i<n;i++) ctx.beget();
+    ghDirty=true;
+    res.setHeader("Content-Type","application/json");
+    res.end(JSON.stringify({visitors,machines:ctx.machines.length}));
     return;
   }
   if(u.pathname==="/reset"){
