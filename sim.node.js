@@ -250,10 +250,10 @@ function Machine(role,atGate,px,pz){
   }
   this.ang=rnd()*Math.PI*2;
   this.load=0; this.cap=8*CS; this.state="go"; this.mode="scoop"; this.flash=0;
-  this.boom=0.50; this.stick=-1.42; this.buck=-0.60; this.slew=0; this.stroke=rnd()*2;
+  this.boom=0.12; this.stick=-1.05; this.buck=-0.95; this.slew=0; this.stroke=rnd()*2;
   this.wt=rnd()*10; this.ph=rnd()*6.28; this.life=8+rnd()*32;
   this.moving=0; this.digging=0; this.tipping=0;
-  this.tbA=0.50; this.tsA=-1.42; this.tkA=-0.62; this.slewT=0;
+  this.tbA=0.12; this.tsA=-1.05; this.tkA=-0.95; this.slewT=0;
   if(role===RAISE){
     this.sx=this.x; this.sz=this.z; this.ring=rnd()*Math.PI*2;
     this.best=hAt(this.x,this.z); this.lastH=this.best; this.check=0;
@@ -433,7 +433,7 @@ Machine.prototype.step=function(dt,self){
       }
     }
   } else {
-    this.tbA=0.50; this.tsA=-1.42; this.tkA=-0.62; this.slewT=0;
+    this.tbA=0.12; this.tsA=-1.05; this.tkA=-0.95; this.slewT=0;
     this.digging=0; this.tipping=0;
   }
 
