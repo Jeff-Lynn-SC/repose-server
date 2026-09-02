@@ -854,16 +854,16 @@ function tracerStep(a,dt,self){
 }
 
 
-var maxH=0,gini=0,nA=0,nB=0,totalMass=0,stripped=0,buried=0,tracked=0;
+var maxH=0,minH=0,gini=0,nA=0,nB=0,totalMass=0,stripped=0,buried=0,tracked=0;
 var gHist=[],aHist=[],samp=new Float32Array(1400);
 function stats(){
-  var sum=0,mx=0,i,st=0,bu=0,tk=0,tol=0.4*CS;
+  var sum=0,mx=-1e9,mn=1e9,i,st=0,bu=0,tk=0,tol=0.4*CS;
   for(i=0;i<h.length;i++){
-    var v=h[i]; sum+=v; if(v>mx) mx=v;
+    var v=h[i]; sum+=v; if(v>mx) mx=v; if(v<mn) mn=v;
     var d=v-h0[i]; if(d<-tol) st++; else if(d>tol) bu++;
     if(wear[i]>0.1) tk++;
   }
-  meanH=sum/h.length; maxH=mx;
+  meanH=sum/h.length; maxH=mx; minH=mn;
   stripped=st/h.length; buried=bu/h.length; tracked=tk/h.length;
   var carried=0;
   if(!fieldMode) for(i=0;i<machines.length;i++) carried+=machines[i].load;
@@ -1171,7 +1171,7 @@ function snapshot(){
     h:hh, wear:ww, agents:ag, dust:du, events:ev, rock:rk,
     era:{day:worldDays(),mix:mixRaise,repose:reposeDeg,rate:rateMul,windDir:windDir,windStr:windStr},
     N:N, CS:CS, HALF:HALF, BASE:BASE, machLen:machLen, fieldMode:fieldMode,
-    stats:{mean:meanH,max:maxH,gini:gini,stripped:stripped,buried:buried,
+    stats:{mean:meanH,max:maxH,min:minH,gini:gini,stripped:stripped,buried:buried,
            tracked:tracked,collapses:collapses,nA:nA,nB:nB,mass:totalMass,
            alive:machines.length,wanted:targetPop,births:births,deaths:deaths}};
   dustN=0; evN=0;
@@ -1260,6 +1260,9 @@ module.exports={
   get mixRaise(){return mixRaise}, set mixRaise(v){mixRaise=v},
   get reposeDeg(){return reposeDeg},
   get windStr(){return windStr}, get windDir(){return windDir},
+  get figures(){ return {mean:meanH,max:maxH,min:minH,gini:gini,stripped:stripped,buried:buried,
+    tracked:tracked,collapses:collapses,nA:nA,nB:nB,mass:totalMass,
+    alive:machines.length,wanted:targetPop,births:births,deaths:deaths}; },
   get maxH(){return maxH}, get gini(){return gini}, get stripped(){return stripped},
   get collapses(){return collapses},
   get simTime(){return simTime}, set simTime(v){simTime=v},

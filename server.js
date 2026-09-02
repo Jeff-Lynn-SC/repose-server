@@ -30,7 +30,7 @@ const GH_EVERY = parseInt(process.env.GH_EVERY || "300000", 10);   /* five minut
    the endpoint does not exist. */
 const RESET_KEY = process.env.RESET_KEY || "";
 /* so you can tell at a glance which simulation is actually running */
-const BUILD = "2026-09-02 · the whole world saved, not just the sand · one timeline across a restart";
+const BUILD = "2026-09-02 · real figures on the readout · minus-one buttons";
 let ghSha=null, ghDirty=false, ghLast=0;
 const TICK_MS   = 100;              /* how often the world is versioned */
 const SIM_HZ    = 40;               /* the simulation's own fixed step */
@@ -303,6 +303,38 @@ const server = http.createServer((req,res)=>{
     ghDirty=true;
     res.setHeader("Content-Type","application/json");
     res.end(JSON.stringify({visitors,machines:ctx.machines.length}));
+    return;
+  }
+  if(u.pathname==="/stats"){
+    /* the binary packet carries sand and machines only, so the figures on the
+       readout come from here. Small, and nobody has to be trusted for it. */
+    res.setHeader("Content-Type","application/json");
+    res.end(JSON.stringify(ctx.figures));
+    return;
+  }
+  if(u.pathname==="/remove"){
+    /* for looking at it: take machines out again, so that one can be watched
+       on its own. The opposite of /add, and it lowers the wanted number too,
+       or the pit would simply give birth to a replacement. */
+    if(!RESET_KEY || u.searchParams.get("key")!==RESET_KEY){
+      res.statusCode=403; res.end("no"); return;
+    }
+    const n=Math.max(0,Math.min(500,parseInt(u.searchParams.get("n")||"1",10)||0));
+    const want=u.searchParams.get("role");     /* "raise", "fill", or nothing */
+    const role=(want==="raise")?0:((want==="fill")?1:-1);
+    let gone=0;
+    for(let k=0;k<n;k++){
+      let ix=-1;
+      for(let i=ctx.machines.length-1;i>=0;i--){
+        if(role<0||ctx.machines[i].role===role){ ix=i; break; }
+      }
+      if(ix<0) break;
+      ctx.machines.splice(ix,1); gone++;
+    }
+    visitors=Math.max(0,visitors-gone); ctx.targetPop=visitors;
+    ghDirty=true;
+    res.setHeader("Content-Type","application/json");
+    res.end(JSON.stringify({visitors,machines:ctx.machines.length,removed:gone}));
     return;
   }
   if(u.pathname==="/speed"){
