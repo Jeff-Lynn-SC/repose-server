@@ -245,6 +245,26 @@ function giveTo(wx,wz,r,amount){
 }
 var _buf=new Int32Array(4096);
 
+/* ---------------------------------------------------------
+   How a machine gets about. In metres and seconds, because
+   these used to be in cells: a cell was 87 cm when they were
+   written and is 5.6 m now, so the machines had quietly come
+   to drive at 35 km/h and to slide two hundred metres in a
+   second. At 35 km/h nothing can be trapped by anything.
+
+   DRIVE  5 km/h, which is what tracked plant does.
+   GRADE  the steepest it will climb. Tracked plant manages
+          about thirty degrees. Sand stands at thirty-four or
+          so, and will not stand at less, so the wall of any
+          hole deep enough to matter is already too steep to
+          drive out of. The trap is those two numbers meeting,
+          not a rule about being trapped.
+   SLIP   how fast ground steeper than it will hold takes the
+          machine down with it.
+   --------------------------------------------------------- */
+var DRIVE=1.40, GRADE=Math.tan(30*Math.PI/180), SLIP=6.0;
+var DETOUR=[0, 0.45, -0.45, 0.95, -0.95, 1.55, -1.55];
+
 var RAISE=0, FILL=1;
 var COL_A=[1.55,.62,.22], COL_B=[.30,1.25,1.15], COL_N=[1,1,1];
 
@@ -274,9 +294,23 @@ function Machine(role,atGate,px,pz){
     this.pickScoop();
   } else this.newJob();
 }
+/* How far out a raiser digs.
+
+   Sand taken from inside the summit's own repose cone runs straight back
+   down into the hole it came from, so a raiser digging close to its hill
+   is only moving the same sand up and down. The distance at which that
+   stops is not a number anybody chose: it is the drop from the summit to
+   the floor of the last cut, laid over at the angle the sand will stand.
+   Digging deepens the cut, which lifts the drop, which pushes the ring
+   further out on its own. The old fixed radius was six cells, which was
+   five metres when a cell was 87 cm and is thirty-three now — far enough
+   that at a real driving speed the machine spent its day travelling. */
 Machine.prototype.pickScoop=function(){
-  var grown=(this.best-BASE)/CS;
-  var R=Math.min(22, 6.0+grown*2.4)*CS;
+  var Hs=hAt(this.sx,this.sz);
+  var Hd=(this.tx===undefined)?meanH:hAt(this.tx,this.tz);
+  var drop=Hs-Hd;
+  var cone=(drop>0)?drop/Math.tan(reposeDeg*Math.PI/180):0;
+  var R=Math.max(2.2*machLen,Math.min(HALF*0.45,cone));
   var lim=HALF-2*CS;
   this.tx=Math.max(-lim,Math.min(lim,this.sx+Math.cos(this.ring)*R));
   this.tz=Math.max(-lim,Math.min(lim,this.sz+Math.sin(this.ring)*R));
@@ -380,13 +414,31 @@ Machine.prototype.step=function(dt,self){
     else{
       var wx=dx/dist+_avX*1.6, wz=dz/dist+_avZ*1.6;
       var want=Math.atan2(wz,wx);
-      var diff=((want-this.ang+Math.PI*3)%(Math.PI*2))-Math.PI;
-      this.ang+=Math.min(Math.abs(diff),0.55*dt)*(diff<0?-1:1);   /* tracks turn slowly */
       var g=gradAt(this.x,this.z);
-      var up=-(Math.cos(this.ang)*g.x+Math.sin(this.ang)*g.z);
-      var sp=1.6*CS*Math.max(.35,1-up*.8)*_avBrake*dt;            /* about 5 km/h */
+      /* Tracked plant will not climb much past thirty degrees, and sand
+         will not stand at less than about thirty-four. So the wall of a
+         hole cut in sand is, by those two numbers alone, steeper than
+         anything that could drive out of it. Nothing here tells a machine
+         it is stuck. It tries the way it wants to go, then further and
+         further off it, and if none of them will go, it does not go. */
+      var bf=-1, ba=want;
+      for(var q=0;q<7;q++){
+        var qa=want+DETOUR[q];
+        var qc=Math.cos(qa)*g.x+Math.sin(qa)*g.z;              /* + is uphill */
+        var qf=1-qc/GRADE; if(qf>1.15) qf=1.15; else if(qf<0) qf=0;
+        qf*=0.55+0.45*Math.cos(DETOUR[q]);                     /* the long way round is a worse way round */
+        if(qf>bf){ bf=qf; ba=qa; }
+      }
+      var diff=((ba-this.ang+Math.PI*3)%(Math.PI*2))-Math.PI;
+      this.ang+=Math.min(Math.abs(diff),0.55*dt)*(diff<0?-1:1);   /* tracks turn slowly */
+      var climb=Math.cos(this.ang)*g.x+Math.sin(this.ang)*g.z;
+      var gf=1-climb/GRADE; if(gf>1.15) gf=1.15; else if(gf<0) gf=0;
+      var sp=DRIVE*gf*_avBrake*dt;
       this.x+=Math.cos(this.ang)*sp; this.z+=Math.sin(this.ang)*sp;
       this.moving=sp/dt;
+      /* nowhere it can go. It works where it stands, which for a raiser
+         means cutting away the floor it is standing on. */
+      if(gf<=0.02){ this.state="work"; this.moving=0; }
     }
   }
   if(this.state==="work"){
@@ -458,19 +510,17 @@ Machine.prototype.step=function(dt,self){
   this.z=this.z<-lim?-lim:(this.z>lim?lim:this.z);
 
   var gg=gradAt(this.x,this.z), m=Math.sqrt(gg.x*gg.x+gg.z*gg.z), crit=Math.tan(reposeDeg*Math.PI/180);
-  if(m>crit*1.05){ var sl=(m-crit)*7*CS*dt; this.x-=gg.x/m*sl; this.z-=gg.z/m*sl; }
+  if(m>crit*1.05){ var sl=(m-crit)*SLIP*dt; this.x-=gg.x/m*sl; this.z-=gg.z/m*sl; }
 
   if(this.role===RAISE){
     var now=hAt(this.sx,this.sz);
     if(now>this.best){ this.best=now; if(this.mark===undefined) this.mark=now; if(now>this.mark+1.20){ this.mark=now; event(3,this.sx,this.sz,now); } }
+    /* The ground failing is the sand's answer, not the machine's. It does
+       not know it has failed and has no reason to go elsewhere: it builds
+       again on whatever is left, which is how a summit gets fought over
+       by one machine for a very long time. */
     if(now<this.best-0.55){
       collapses++; this.flash=1; event(0,this.sx,this.sz,this.best-now); this.best=now;
-      if(rnd()<0.55) this.relocate();
-    }
-    this.check+=dt;
-    if(this.check>75){
-      if(now-this.lastH<0.10) this.relocate();
-      else {this.lastH=now; this.check=0;}
     }
   }
   if(this.flash>0) this.flash=Math.max(0,this.flash-dt*1.5);
