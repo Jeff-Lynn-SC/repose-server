@@ -30,7 +30,7 @@ const GH_EVERY = parseInt(process.env.GH_EVERY || "300000", 10);   /* five minut
    the endpoint does not exist. */
 const RESET_KEY = process.env.RESET_KEY || "";
 /* so you can tell at a glance which simulation is actually running */
-const BUILD = "2026-09-01 · 5 km/h · 30° climb limit · scoop ring from the repose cone";
+const BUILD = "2026-09-02 · the whole world saved, not just the sand · one timeline across a restart";
 let ghSha=null, ghDirty=false, ghLast=0;
 const TICK_MS   = 100;              /* how often the world is versioned */
 const SIM_HZ    = 40;               /* the simulation's own fixed step */
@@ -68,44 +68,78 @@ async function ghPut(obj){
   if(r.ok){ const j=await r.json(); ghSha=j.content.sha; ghDirty=false; }
   else console.log("could not write the world:", r.status, (await r.text()).slice(0,140));
 }
+/* ---- the whole world, written down and read back ----
+
+   Stopping the world for want of visitors and starting it again must not
+   be the same thing as ending it. Everything that cannot be worked out
+   again goes in: the sand, the rock, the ground as it was before anybody
+   touched it, every machine, and the state of the world's own luck. It is
+   one gzipped block, which comes out smaller than the sand used to on its
+   own, because sand compresses well.
+
+   Format 1 — sand only — is still read, so an old world is not lost; it
+   simply starts its machines again the one last time. */
+const MF=28;
+function snapshot(){
+  const N=ctx.N, n=N*N;
+  const head=Buffer.alloc(8);
+  head.writeUInt32LE(N,0);
+  const mf=ctx.packMachines();
+  head.writeUInt32LE((mf.length/MF)|0,4);
+  const sand=Buffer.from(new Uint8Array(ctx.h.buffer,ctx.h.byteOffset,n*4));
+  const was=Buffer.alloc(n*2);
+  for(let i=0;i<n;i++) was.writeInt16LE(Math.max(-32768,Math.min(32767,Math.round(ctx.h0[i]*100))),i*2);
+  const rk=Buffer.alloc(n);
+  for(let i=0;i<n;i++) rk[i]=Math.max(0,Math.min(255,Math.round(ctx.rock[i]*255)));
+  const mb=Buffer.from(new Uint8Array(mf.buffer,mf.byteOffset,mf.length*4));
+  const blob=zlib.gzipSync(Buffer.concat([head,sand,was,rk,mb]),{level:6});
+  return { v:2, visitors, seen, born, simTime: ctx.simTime, rng: ctx.rng,
+           machines: ctx.machines.length, world: blob.toString("base64") };
+}
 function applySaved(j){
   visitors = j.visitors|0; seen = j.seen || Object.create(null); born = j.born || Date.now();
-  ctx.applyScale({ix:0,N:WORLDN,width:WORLD,pop:Math.max(0,visitors),vis:0.233},null,true);
-  if(j.h){
+  /* built empty: what was here is about to be put back, not made again */
+  ctx.applyScale({ix:0,N:WORLDN,width:WORLD,pop:0,vis:0.233},null,true);
+  if(j.simTime) ctx.simTime=j.simTime;
+  if(j.rng!==undefined && j.rng!==null) ctx.seedRNG(j.rng);
+  let ok=false;
+  if(j.v>=2 && j.world){
+    try{
+      const b=zlib.gunzipSync(Buffer.from(j.world,"base64"));
+      const N=b.readUInt32LE(0), nm=b.readUInt32LE(4), n=N*N;
+      if(N===ctx.N && b.length>=8+n*7+nm*MF*4){
+        let o=8;
+        for(let i=0;i<n;i++) ctx.h[i]=b.readFloatLE(o+i*4);        o+=n*4;
+        for(let i=0;i<n;i++) ctx.h0[i]=b.readInt16LE(o+i*2)/100;   o+=n*2;
+        for(let i=0;i<n;i++) ctx.rock[i]=b[o+i]/255;               o+=n;
+        if(nm>0){
+          const mf=new Float32Array(nm*MF);
+          for(let i=0;i<mf.length;i++) mf[i]=b.readFloatLE(o+i*4);
+          ctx.unpackMachines(mf);
+        }
+        ok=true;
+      } else console.log("saved world is a different size; starting again");
+    }catch(e){ console.log("could not read the saved world:", e.message); }
+  } else if(j.h){
     const raw=Buffer.from(j.h,"base64");
     const h=new Float32Array(raw.buffer,raw.byteOffset,raw.byteLength/4);
-    if(h.length===ctx.h.length) ctx.h.set(h);
+    if(h.length===ctx.h.length){ ctx.h.set(h); ctx.h0.set(h); ok=true; }
   }
-  if(j.simTime) ctx.simTime=j.simTime;
-  console.log("world restored:", visitors, "visitors,", ctx.machines.length, "machines");
-}
-function snapshot(){
-  return { visitors, seen, born, simTime: ctx.simTime,
-           h: Buffer.from(new Uint8Array(ctx.h.buffer)).toString("base64") };
+  ctx.targetPop=Math.max(0,visitors);
+  ctx.measurePopulation(); ctx.stats();
+  console.log("world restored:", visitors, "visitors,", ctx.machines.length, "machines,",
+    (ctx.simTime/86400).toFixed(2), "world days"+(ok?"":"  (nothing readable: new ground)"));
 }
 function loadState(){
-  try{
-    const j = JSON.parse(fs.readFileSync(STATE,"utf8"));
-    visitors = j.visitors|0; seen = j.seen || Object.create(null); born = j.born || Date.now();
-    ctx.applyScale({ix:0,N:WORLDN,width:WORLD,pop:Math.max(0,visitors),vis:0.233},null,true);
-    if(j.h){
-      const h = Float32Array.from(Buffer.from(j.h,"base64").buffer ? new Float32Array(new Uint8Array(Buffer.from(j.h,"base64")).buffer) : []);
-      if(h.length===ctx.h.length) ctx.h.set(h);
-    }
-    if(j.simTime) ctx.simTime = j.simTime;
-    console.log("world restored:", visitors, "visitors,", ctx.machines.length, "machines");
-  }catch(e){
+  try{ applySaved(JSON.parse(fs.readFileSync(STATE,"utf8"))); }
+  catch(e){
     ctx.applyScale({ix:0,N:WORLDN,width:WORLD,pop:0,vis:0.233},null,true);
     console.log("new world");
   }
 }
 function saveState(){
-  try{
-    fs.writeFileSync(STATE, JSON.stringify({
-      visitors, seen, born, simTime: ctx.simTime,
-      h: Buffer.from(new Uint8Array(ctx.h.buffer)).toString("base64")
-    }));
-  }catch(e){ console.error("could not save:", e.message); }
+  try{ fs.writeFileSync(STATE, JSON.stringify(snapshot())); }
+  catch(e){ console.error("could not save:", e.message); }
 }
 loadState();                 /* something to be going on with */
 if(GH_TOKEN&&GH_REPO){
@@ -294,6 +328,7 @@ const server = http.createServer((req,res)=>{
     ctx.seedRNG((Date.now()&0x7fffffff)|1);
     ctx.simTime=0;
     ctx.applyScale({ix:0,N:WORLDN,width:WORLD,pop:pop,vis:0.233},null,true);
+    ctx.simTime=0;
     /* every cell counts as changed, so anyone watching is sent the new world */
     version++;
     for(let i=0;i<ctx.h.length;i++){

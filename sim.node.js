@@ -224,7 +224,13 @@ function takeFrom(wx,wz,r,amount){
     i=idx(x,z); if(h[i]<=0.02+rock[i]*0.34*CS) continue;
     _buf[n++]=i; avail+=h[i];
   }
-  if(!n) return 0;
+  /* the disc can fall between cell centres and gather nothing at all. The
+     teeth are still in the ground, so they cut the ground they are over. */
+  if(!n){
+    i=cellAt(wx,wz);
+    if(i<0 || h[i]<=0.02+rock[i]*0.34*CS) return 0;
+    _buf[n++]=i; avail=h[i];
+  }
   var per=Math.min(amount,avail*0.5)/n, real=0;
   for(var c=0;c<n;c++){i=_buf[c]; var t=per<h[i]?per:h[i]; h[i]-=t; real+=t; wear[i]=0; if(rock[i]<1){ var lo=(meanH-h[i])/(1.5*CS); if(lo>0){ if(lo>1) lo=1; rock[i]+=t*ROCKRATE*lo; if(rock[i]>1) rock[i]=1; } } }
   return real;
@@ -238,7 +244,8 @@ function giveTo(wx,wz,r,amount){
     var ax=x-gx,az=z-gz; if(ax*ax+az*az>rc*rc) continue;
     _buf[n++]=idx(x,z);
   }
-  if(!n) return 0;
+  /* likewise: a bucket of sand has to land somewhere */
+  if(!n){ var ci=cellAt(wx,wz); if(ci<0) return 0; _buf[n++]=ci; }
   var per=amount/n;
   for(var c=0;c<n;c++){ h[_buf[c]]+=per; wear[_buf[c]]=0; }
   return amount;
@@ -283,7 +290,7 @@ function Machine(role,atGate,px,pz){
      which changes its mind later cannot end up steering at nothing */
   this.ring=rnd()*6.2832; this.sx=this.x; this.sz=this.z;
   this.ang=rnd()*Math.PI*2;
-  this.load=0; this.idle=0; this.cap=BUCKET/(CS*CS); this.state="go"; this.mode="scoop"; this.flash=0;
+  this.load=0; this.got=0; this.idle=0; this.cap=BUCKET/(CS*CS); this.state="go"; this.mode="scoop"; this.flash=0;
   this.boom=0.55; this.stick=-1.30; this.buck=-0.35; this.slew=0; this.stroke=rnd()*2;
   this.wt=rnd()*10; this.ph=rnd()*6.28; this.life=8+rnd()*32;
   this.moving=0; this.digging=0; this.tipping=0;
@@ -307,13 +314,17 @@ function Machine(role,atGate,px,pz){
    that at a real driving speed the machine spent its day travelling. */
 Machine.prototype.pickScoop=function(){
   var Hs=hAt(this.sx,this.sz);
-  var Hd=(this.tx===undefined)?meanH:hAt(this.tx,this.tz);
+  /* the floor of the last cut, which has to be remembered: by the time this
+     runs, tx has been moved to the summit to tip at and reading it there
+     made the drop nought and pinned the ring at its smallest */
+  var Hd=(this.dgx===undefined)?meanH:hAt(this.dgx,this.dgz);
   var drop=Hs-Hd;
   var cone=(drop>0)?drop/Math.tan(reposeDeg*Math.PI/180):0;
   var R=Math.max(2.2*machLen,Math.min(HALF*0.45,cone));
   var lim=HALF-2*CS;
   this.tx=Math.max(-lim,Math.min(lim,this.sx+Math.cos(this.ring)*R));
   this.tz=Math.max(-lim,Math.min(lim,this.sz+Math.sin(this.ring)*R));
+  this.dgx=this.tx; this.dgz=this.tz;
   this.state="go"; this.mode="scoop";
 };
 Machine.prototype.relocate=function(){
@@ -334,35 +345,46 @@ Machine.prototype.relocate=function(){
   this.sx=bx; this.sz=bz; this.best=hAt(bx,bz); this.lastH=this.best; this.check=0;
   this.ring=rnd()*Math.PI*2; this.pickScoop();
 };
+/* What a filler does next.
+
+   A hollow filled and a hump taken down are the same thing to it, so it
+   weighs both ends of a job together: a bucket moved from a high place to
+   a low one closes the gap between them by as much as it can carry, and
+   that is set against how long fetching and carrying it takes. The same
+   reckoning the raiser makes, for the opposite purpose.
+
+   It used to demand ground more than half a metre off the mean and within
+   thirty of itself, and if it found none it set itself idle and drove
+   about with an empty bucket going through the motions. On a kilometre of
+   smooth sand it found none, ever, and that is what it did: both machines
+   working all day and moving nothing. There is no threshold now. Whatever
+   is highest and lowest near by is the job. */
 Machine.prototype.newJob=function(){
-  var i,c,d,s,k,tol=0.55,pull=0.045;
-  var R=(rnd()<0.02)?frontier():(5+this.crowd*14)*machLen;
-  function near(self){ return {x:Math.max(-HALF+2*CS,Math.min(HALF-2*CS,self.x+(rnd()*2-1)*R)),
-                              z:Math.max(-HALF+2*CS,Math.min(HALF-2*CS,self.z+(rnd()*2-1)*R))}; }
-  var lo=1e9,hx=null,hz=null;
-  for(k=0;k<40;k++){
-    c=near(this); i=cellAt(c.x,c.z); if(i<0) continue;
-    if(h[i]>meanH-tol) continue;
-    d=Math.sqrt((c.x-this.x)*(c.x-this.x)+(c.z-this.z)*(c.z-this.z));
-    var dc2=Math.sqrt((c.x-popX)*(c.x-popX)+(c.z-popZ)*(c.z-popZ));
-    s=h[i]+d*pull+densAt(c.x,c.z)*this.crowd*0.5*CS
-        +dc2*(1-this.crowd)*0.045;
-    if(s<lo){lo=s;hx=c.x;hz=c.z;}
+  var lim=HALF-2*CS, cyc=2/(0.17*rateMul);
+  var best=-1,bhx=null,bhz=null,bux=null,buz=null;
+  for(var k=0;k<28;k++){
+    var R=(rnd()<0.03)?frontier():(3+this.crowd*12)*machLen*(0.5+rnd()*rnd()*6);
+    var ux=this.x+(rnd()*2-1)*R, uz=this.z+(rnd()*2-1)*R;
+    if(ux<-lim||ux>lim||uz<-lim||uz>lim) continue;
+    var iu=cellAt(ux,uz); if(iu<0) continue;
+    if(h[iu]<=0.06+rock[iu]*0.34*CS) continue;      /* rock, or nothing left to take */
+    var r2=(1.2+rnd()*rnd()*10)*machLen, a2=rnd()*6.2832;
+    var hx=ux+Math.cos(a2)*r2, hz=uz+Math.sin(a2)*r2;
+    if(hx<-lim||hx>lim||hz<-lim||hz>lim) continue;
+    var ih=cellAt(hx,hz); if(ih<0) continue;
+    var gap=h[iu]-h[ih];
+    if(gap<=0) continue;                            /* that way is uphill: not levelling */
+    var gain=Math.min(this.cap,gap*0.5);
+    var d1=Math.sqrt((ux-this.x)*(ux-this.x)+(uz-this.z)*(uz-this.z));
+    var d2=Math.sqrt((hx-ux)*(hx-ux)+(hz-uz)*(hz-uz));
+    var sc=gain/((d1+2*d2)/DRIVE+cyc);
+    sc-=densAt(ux,uz)*this.crowd*0.0003*CS;         /* and not shoulder to shoulder */
+    if(sc>best){ best=sc; bhx=hx; bhz=hz; bux=ux; buz=uz; }
   }
-  var hi=-1e9,ux=null,uz=null;
-  for(k=0;k<40;k++){
-    c=near(this); i=cellAt(c.x,c.z); if(i<0) continue;
-    if(h[i]<meanH+tol) continue;
-    d=Math.sqrt((c.x-this.x)*(c.x-this.x)+(c.z-this.z)*(c.z-this.z));
-    s=h[i]-d*pull-Math.sqrt((c.x-popX)*(c.x-popX)+(c.z-popZ)*(c.z-popZ))*(1-this.crowd)*0.045;
-    if(s>hi){hi=s;ux=c.x;uz=c.z;}
-  }
-  if(hx===null||ux===null){
-    var pa=rnd()*6.2832, pr=(0.35+rnd()*0.75)*popR;
-    this.hx=Math.max(-HALF+2*CS,Math.min(HALF-2*CS,popX+Math.cos(pa)*pr));
-    this.hz=Math.max(-HALF+2*CS,Math.min(HALF-2*CS,popZ+Math.sin(pa)*pr));
-    this.ux=this.hx; this.uz=this.hz; this.idle=1;
-  }else{this.hx=hx;this.hz=hz;this.ux=ux;this.uz=uz;this.idle=0;}
+  if(bhx===null){
+    /* genuinely nothing to do: it stands where it is, rather than miming */
+    this.hx=this.x; this.hz=this.z; this.ux=this.x; this.uz=this.z; this.idle=1;
+  }else{ this.hx=bhx; this.hz=bhz; this.ux=bux; this.uz=buz; this.idle=0; }
   this.tx=this.ux; this.tz=this.uz; this.state="go"; this.mode="scoop";
 };
 /* ---------------------------------------------------------
@@ -466,14 +488,23 @@ Machine.prototype.step=function(dt,self){
       else { this.tbA=k.b; this.tsA=k.s; this.tkA=-0.15-1.25*q; }
       /* only cuts while the teeth are actually in the ground */
       if(t.y*machLen+here <= groundAt+0.06*machLen){
-        this.load+=takeFrom(t.x,t.z,0.55*CS,Math.min(amt,this.cap-this.load));
+        var cut=takeFrom(t.x,t.z,0.55*CS,Math.min(amt,this.cap-this.load));
+        this.load+=cut; this.got+=cut;
         this.digging=1;
         if(rnd()<9*dt*dustGate)
           puff(t.x,groundAt+0.05*machLen,t.z,(rnd()-0.5)*0.7*CS,0.25*CS,(rnd()-0.5)*0.7*CS,
                0.30*machLen,1.5*machLen,1.6+rnd()*1.4,0.20);
       } else this.digging=0;
-      if(this.load>=this.cap-0.05*CS){
-        this.mode="dump"; this.stroke=0; this.digging=0;
+      /* two full strokes and nothing has come up: this is rock, or it has
+         already been dug to nothing. Not a reason to give up on the purpose
+         — only on this piece of ground. */
+      if(this.stroke>14 && this.got<0.004*this.cap){
+        this.stroke=0; this.got=0; this.digging=0;
+        if(this.role===RAISE){ this.ring+=0.9+rnd()*0.5; this.pickScoop(); }
+        else this.newJob();
+      }
+      else if(this.load>=this.cap-0.05*CS){
+        this.mode="dump"; this.stroke=0; this.got=0; this.digging=0;
         if(this.role===RAISE){this.tx=this.sx;this.tz=this.sz;}
         else{this.tx=this.hx;this.tz=this.hz;}
         this.state="go";
@@ -648,7 +679,20 @@ function setPopulation(n){
   if(fieldMode) n=TRACERS;
   targetPop=n;
   spreadR=Math.max(4*CS,Math.sqrt(n)*1.4*CS);
-  for(var i=0;i<n;i++) machines.push(new Machine(newRole(),true));
+  if(fieldMode){ for(var q=0;q<n;q++) machines.push(new Machine(newRole(),true)); return; }
+  /* A population is made the same way it grows: one arrives, and the rest
+     are born beside those already here and take their purpose from them.
+     It used to be n independent tosses of the era's coin, and since the
+     free instance sleeps and the machines are not saved with the sand,
+     every purpose in the world was re-rolled each time the server woke —
+     which is not a thing that should happen to a machine, and which threw
+     away the first-birth rule that stops a lone one founding a dynasty. */
+  if(n>0) machines.push(new Machine(newRole(),true));
+  for(var i=1;i<n;i++){
+    if((i&15)===0) buildGrid();      /* so a newcomer can see who is near by */
+    beget();
+  }
+  births=0; deaths=0;
   
   
 }
@@ -1059,6 +1103,49 @@ function beget(){
   births++;
 }
 
+/* --------------------- a machine, written down ---------------------
+   So that stopping the world and starting it again is not the same thing
+   as ending it. What a machine is, where it stands, what it is trying to
+   do and what it has taken out of itself getting there. */
+var MFIELDS=28;
+function packMachines(){
+  var n=machines.length, f=new Float32Array(n*MFIELDS), u;
+  for(var i=0;i<n;i++){
+    var a=machines[i], p=i*MFIELDS;
+    f[p]=a.role; f[p+1]=a.x; f[p+2]=a.z; f[p+3]=a.ang;
+    f[p+4]=a.sx; f[p+5]=a.sz; f[p+6]=(a.best===undefined)?0:a.best;
+    u=a.hx; f[p+7]=(u===undefined)?a.x:u;  u=a.hz; f[p+8]=(u===undefined)?a.z:u;
+    u=a.ux; f[p+9]=(u===undefined)?a.x:u;  u=a.uz; f[p+10]=(u===undefined)?a.z:u;
+    f[p+11]=a.tx; f[p+12]=a.tz;
+    u=a.dgx; f[p+13]=(u===undefined)?a.tx:u;  u=a.dgz; f[p+14]=(u===undefined)?a.tz:u;
+    f[p+15]=a.load; f[p+16]=a.dmg; f[p+17]=a.crowd; f[p+18]=a.ring;
+    f[p+19]=a.stroke; f[p+20]=a.idle?1:0;
+    f[p+21]=(a.mode==="dump")?1:0; f[p+22]=(a.state==="work")?1:0;
+    f[p+23]=(a.mark===undefined)?-1e9:a.mark;
+    f[p+24]=a.boom; f[p+25]=a.stick; f[p+26]=a.buck; f[p+27]=a.slew;
+  }
+  return f;
+}
+function unpackMachines(f){
+  machines.length=0;
+  if(!f||!f.length) return;
+  var n=(f.length/MFIELDS)|0;
+  for(var i=0;i<n;i++){
+    var p=i*MFIELDS, a=new Machine(f[p]|0,false,f[p+1],f[p+2]);
+    a.ang=f[p+3]; a.sx=f[p+4]; a.sz=f[p+5]; a.best=f[p+6];
+    a.hx=f[p+7]; a.hz=f[p+8]; a.ux=f[p+9]; a.uz=f[p+10];
+    a.tx=f[p+11]; a.tz=f[p+12]; a.dgx=f[p+13]; a.dgz=f[p+14];
+    a.load=f[p+15]; a.dmg=f[p+16]; a.crowd=f[p+17]; a.ring=f[p+18];
+    a.stroke=f[p+19]; a.idle=f[p+20]?1:0;
+    a.mode=f[p+21]?"dump":"scoop"; a.state=f[p+22]?"work":"go";
+    if(f[p+23]>-1e8) a.mark=f[p+23];
+    a.boom=a.tbA=f[p+24]; a.stick=a.tsA=f[p+25];
+    a.buck=a.tkA=f[p+26]; a.slew=a.slewT=f[p+27];
+    machines.push(a);
+  }
+  buildGrid();
+}
+
 /* --------------------- packing for the renderer --------------------- */
 var pool=[];
 function grab(n){
@@ -1166,6 +1253,8 @@ module.exports={
   measurePopulation:measurePopulation,
   get h(){return h}, get wear(){return wear}, get rock(){return rock}, get h0(){return h0},
   get machines(){return machines},
+  packMachines:packMachines, unpackMachines:unpackMachines,
+  get rng(){return RNG},
   get N(){return N}, get CS(){return CS}, get HALF(){return HALF},
   get BASE(){return BASE}, get machLen(){return machLen},
   get mixRaise(){return mixRaise}, set mixRaise(v){mixRaise=v},
