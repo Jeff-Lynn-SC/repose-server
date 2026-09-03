@@ -415,7 +415,12 @@ function toothWorld(a){
 var _ik={b:0,s:0};
 function armTo(tx,ty){
   var d=Math.sqrt(tx*tx+ty*ty);
-  var lo=Math.abs(L_BOOM-L_STICK)+0.02, hi=L_BOOM+L_STICK-0.02;
+  /* A stick will not fold back onto its own boom. The old lower bound was
+     the bare geometric one, which let a close target ask for a hundred and
+     sixty degrees of fold - the bucket drawn through the boom, and the teeth
+     nowhere near the sand. This is the elbow at about a hundred and twenty-
+     five degrees, which is as far as the ram goes. */
+  var lo=0.706, hi=L_BOOM+L_STICK-0.02;
   if(d<lo) d=lo; else if(d>hi) d=hi;
   var c=(d*d-L_BOOM*L_BOOM-L_STICK*L_STICK)/(2*L_BOOM*L_STICK);
   if(c>1) c=1; else if(c<-1) c=-1;
@@ -482,10 +487,22 @@ Machine.prototype.step=function(dt,self){
       /* drag the teeth back through the sand as the bucket closes */
       var r=reach-0.42*q;
       var bite=(0.10+0.20*Math.sin(Math.PI*q))*machLen;
-      var ty=(groundAt-here-bite)/machLen+0.28;
+      /* Aim the teeth, not the bucket pivot. armTo places the pivot; the
+         teeth hang off the bucket a quarter of a length out and a fifth
+         down, and which way that points depends on how far the bucket has
+         curled. There used to be a flat +0.28 here standing in for it - a
+         machine-length fudge that grew with the machine into most of two
+         metres of daylight, and the wrong way up once the bucket closed.
+         Solve once, see where the teeth actually landed, take that off,
+         solve again. */
+      var ty=(groundAt-here-bite)/machLen;
+      var tk=-0.15-1.25*q;
       var k=armTo(r-P_BOOMX,ty-P_BOOMY);
+      var d3=k.b+k.s+tk;
+      k=armTo(r-P_BOOMX-(0.25*Math.cos(d3)+0.198*Math.sin(d3)),
+              ty-P_BOOMY-(0.25*Math.sin(d3)-0.198*Math.cos(d3)));
       if(this.idle){ this.tbA=0.55; this.tsA=-1.30; this.tkA=-0.35; }
-      else { this.tbA=k.b; this.tsA=k.s; this.tkA=-0.15-1.25*q; }
+      else { this.tbA=k.b; this.tsA=k.s; this.tkA=tk; }
       /* only cuts while the teeth are actually in the ground */
       if(t.y*machLen+here <= groundAt+0.06*machLen){
         var cut=takeFrom(t.x,t.z,0.55*CS,Math.min(amt,this.cap-this.load));
@@ -498,10 +515,14 @@ Machine.prototype.step=function(dt,self){
       /* two full strokes and nothing has come up: this is rock, or it has
          already been dug to nothing. Not a reason to give up on the purpose
          — only on this piece of ground. */
-      if(this.stroke>14 && this.got<0.004*this.cap){
-        this.stroke=0; this.got=0; this.digging=0;
-        if(this.role===RAISE){ this.ring+=0.9+rnd()*0.5; this.pickScoop(); }
-        else this.newJob();
+      if(this.stroke>14){
+        var barren=this.got<0.004*this.cap;
+        this.stroke=0; this.got=0;              /* the last two strokes, not the whole visit */
+        if(barren){
+          this.digging=0;
+          if(this.role===RAISE){ this.ring+=0.9+rnd()*0.5; this.pickScoop(); }
+          else this.newJob();
+        }
       }
       else if(this.load>=this.cap-0.05*CS){
         this.mode="dump"; this.stroke=0; this.got=0; this.digging=0;
