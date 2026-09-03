@@ -358,7 +358,25 @@ Machine.prototype.relocate=function(){
    about with an empty bucket going through the motions. On a kilometre of
    smooth sand it found none, ever, and that is what it did: both machines
    working all day and moving nothing. There is no threshold now. Whatever
-   is highest and lowest near by is the job. */
+   is highest and lowest near by is the job.
+
+   What it weighed, though, was the drop between two points, and any slope
+   at all provides one of those. So it shaved high ground onto ground a
+   little lower and called it levelling, and nothing was ever filled - it
+   was measured digging in hollows and tipping onto higher ground. What
+   makes a hollow a hollow is not that it is lower than somewhere else: it
+   is that it lies below the ground that surrounds it. That is what relief
+   measures, and the difference in relief between the two ends of a job is
+   how much unevenness one bucket actually closes. */
+function reliefAt(x,z){
+  var r=38, s=0, n=0;                  /* metres, about as far as a bucket is worth carrying */
+  for(var a=0;a<8;a++){
+    var th=a*0.7853982, px=x+Math.cos(th)*r, pz=z+Math.sin(th)*r;
+    if(px<-HALF||px>HALF||pz<-HALF||pz>HALF) continue;
+    s+=hAt(px,pz); n++;
+  }
+  return n?hAt(x,z)-s/n:0;
+}
 Machine.prototype.newJob=function(){
   var lim=HALF-2*CS, cyc=2/(0.17*rateMul);
   var best=-1,bhx=null,bhz=null,bux=null,buz=null;
@@ -374,7 +392,8 @@ Machine.prototype.newJob=function(){
     var ih=cellAt(hx,hz); if(ih<0) continue;
     var gap=h[iu]-h[ih];
     if(gap<=0) continue;                            /* that way is uphill: not levelling */
-    var gain=Math.min(this.cap,gap*0.5);
+    var gain=Math.min(this.cap,(reliefAt(ux,uz)-reliefAt(hx,hz))*0.5);
+    if(gain<=0) continue;               /* neither a hump taken down nor a hollow filled */
     var d1=Math.sqrt((ux-this.x)*(ux-this.x)+(uz-this.z)*(uz-this.z));
     var d2=Math.sqrt((hx-ux)*(hx-ux)+(hz-uz)*(hz-uz));
     var sc=gain/((d1+2*d2)/DRIVE+cyc);
@@ -486,7 +505,12 @@ Machine.prototype.step=function(dt,self){
       var q=(this.stroke%7.0)/7.0;
       /* drag the teeth back through the sand as the bucket closes */
       var r=reach-0.42*q;
-      var bite=(0.10+0.20*Math.sin(Math.PI*q))*machLen;
+      /* How far the teeth run below the surface. This was a fraction of a
+         machine length, and a machine is six metres, so it asked for a
+         cut nearly two metres deep - the arm buried to the boom, because
+         the boom has to follow its own teeth down. A bucket takes a
+         bucket's depth. Metres. */
+      var bite=0.10+0.45*Math.sin(Math.PI*q);
       /* Aim the teeth, not the bucket pivot. armTo places the pivot; the
          teeth hang off the bucket a quarter of a length out and a fifth
          down, and which way that points depends on how far the bucket has
