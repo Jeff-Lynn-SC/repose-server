@@ -385,7 +385,15 @@ Machine.prototype.newJob=function(){
     var ux=this.x+(rnd()*2-1)*R, uz=this.z+(rnd()*2-1)*R;
     if(ux<-lim||ux>lim||uz<-lim||uz>lim) continue;
     var iu=cellAt(ux,uz); if(iu<0) continue;
-    if(h[iu]<=0.06+rock[iu]*0.34*CS) continue;      /* rock, or nothing left to take */
+    /* A filler does not take sand from ground already below the datum:
+       deepening one hollow to fill another is not filling. Jeff's rule,
+       and a designer's one - it is listed as such in HANDOVER.md.
+       (What stood here compared an absolute height of about nineteen
+       metres against a number under two, so it never once fired. Another
+       survivor of the days when heights were measured from zero. Measured:
+       53 of 62 dig sites were below the datum. It was working in hollows
+       five times out of six.) */
+    if(h[iu]<=BASE) continue;
     var r2=(1.2+rnd()*rnd()*10)*machLen, a2=rnd()*6.2832;
     var hx=ux+Math.cos(a2)*r2, hz=uz+Math.sin(a2)*r2;
     if(hx<-lim||hx>lim||hz<-lim||hz>lim) continue;
@@ -520,11 +528,20 @@ Machine.prototype.step=function(dt,self){
          Solve once, see where the teeth actually landed, take that off,
          solve again. */
       var ty=(groundAt-here-bite)/machLen;
-      var tk=-0.15-1.25*q;
-      var k=armTo(r-P_BOOMX,ty-P_BOOMY);
-      var d3=k.b+k.s+tk;
-      k=armTo(r-P_BOOMX-(0.25*Math.cos(d3)+0.198*Math.sin(d3)),
-              ty-P_BOOMY-(0.25*Math.sin(d3)-0.198*Math.cos(d3)));
+      /* The attitude of the bucket in the world, not against the stick:
+         teeth down and forward going in, curling under as it fills. Held
+         in this range the teeth are the lowest thing on the machine, so
+         the bucket pivot - and the stick above it - stay out of the sand.
+         The schedule before was an angle relative to the stick, and with
+         the stick hanging it came out at about a hundred and fifty degrees
+         from level: the bucket rolled right back with its teeth nearly a
+         metre ABOVE its own pivot. Putting the teeth in the ground then
+         means burying the arm to reach down to them, which is what it did
+         - the pivot was under the sand 43% of the time it was digging. */
+      var d3=-0.90-0.90*q;
+      var k=armTo(r-P_BOOMX-(0.25*Math.cos(d3)+0.198*Math.sin(d3)),
+                  ty-P_BOOMY-(0.25*Math.sin(d3)-0.198*Math.cos(d3)));
+      var tk=d3-k.b-k.s;
       if(this.idle){ this.tbA=0.55; this.tsA=-1.30; this.tkA=-0.35; }
       else { this.tbA=k.b; this.tsA=k.s; this.tkA=tk; }
       /* only cuts while the teeth are actually in the ground */
@@ -563,10 +580,14 @@ Machine.prototype.step=function(dt,self){
         var give=Math.min(amt,this.load);
         this.load-=giveTo(t.x,t.z,0.55*CS,give);   /* only lose what the ground actually took */
         this.tipping=1;
-        if(rnd()<14*dt*dustGate){
+        /* A fall of sand from the teeth to the ground, rather than a puff
+           at the bucket. Where a load actually goes is the whole of what a
+           filler does, and it was the one thing you could not see. */
+        if(rnd()<30*dt*dustGate){
           var fy=t.y*machLen+here;
-          puff(t.x,fy,t.z,(rnd()-0.5)*0.5*CS,-0.5*CS,(rnd()-0.5)*0.5*CS,
-               0.25*machLen,1.9*machLen,1.8+rnd()*1.6,0.24);
+          puff(t.x+(rnd()-0.5)*0.30*machLen, fy, t.z+(rnd()-0.5)*0.30*machLen,
+               (rnd()-0.5)*0.08*CS, -0.70*CS, (rnd()-0.5)*0.08*CS,
+               0.13*machLen, 1.15*machLen, 2.2+rnd()*1.0, 0.40);
         }
       } else this.tipping=0;
       if(this.load<=0.02*CS){
