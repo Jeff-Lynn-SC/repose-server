@@ -154,14 +154,40 @@ are there. Purpose would then spread by contagion among the demoralised,
 exactly as it already spreads at birth (three parts heredity to one part era).
 No new faculty is needed. The same rule, applied later in life.
 
-**3. It must not become a comfortable homeostasis.** The obvious failure of
-this idea is that it self-corrects into something tidy and mildly hopeful:
-everyone finds the purpose that suits them and settles. The bleak version, and
-the honest one, is that changing purpose does not help. The new theory is
-exactly as unlikely to deliver as the old one, and the machine has now spent
-half its life on each. Meanwhile the machines that got a good spot early never
-doubt anything, because for them it *is* working. Doubt is a luxury of the
-unsuccessful, and it costs them the little they had.
+**3. Settling is not the same as resolving.** I first wrote here that the idea
+must not be allowed to self-correct into a comfortable homeostasis, on the
+grounds that a tidy ending would be a hopeful one. Jeff's correction, and he is
+right:
+
+> "in life, can't we settle into a hopeless comfortable homeostasis and can't
+> we also change our view of how we best achieve self-worth. it seems to fit
+> better for me rather than a we are who we are and cant change"
+
+Two things there, and both stand.
+
+A stable state is not a happy one. A machine that finds a shallow hollow it can
+keep topping up, is content with it, and stops looking has not solved anything.
+It has lowered what it asks of itself until the asking stops hurting. That is
+homeostasis, and it is bleaker than churn rather than less bleak — contentment
+as the absence of ambition rather than its satisfaction. Most people manage some
+version of it.
+
+And people do change their theory of what makes them worth something, often
+more than once. Refusing the machines that in order to keep the piece dark is a
+designer's rule of exactly the kind this project keeps removing.
+
+**So the bleakness is not where I put it.** It is not in *you cannot escape
+your purpose*. It is in the sand. There is one quantity of it; nothing enters
+the world and nothing leaves. A machine can raise, or fill, or change at forty,
+or settle for less and be content — and the total is the same. The second act
+is real, and available, and changes nothing about the world. That is a harder
+thing to say than "you are what you were born as", and it is closer to what the
+piece is already about.
+
+What survives from the first version is only this: the machines that got a good
+spot early never doubt anything, because for them it *is* working. Doubt is a
+luxury of the unsuccessful. But doubt is no longer a trap — it is a door, and
+what is through it is another room the same size.
 
 **What it would look like from outside.** Machines that are getting somewhere
 work steadily and never change. Machines that are not become erratic, then
