@@ -291,10 +291,10 @@ function Machine(role,atGate,px,pz){
   this.ring=rnd()*6.2832; this.sx=this.x; this.sz=this.z;
   this.ang=rnd()*Math.PI*2;
   this.load=0; this.got=0; this.idle=0; this.cap=BUCKET/(CS*CS); this.state="go"; this.mode="scoop"; this.flash=0;
-  this.boom=0.55; this.stick=-1.30; this.buck=-0.35; this.slew=0; this.stroke=rnd()*2;
+  this.boom=-0.30; this.stick=0; this.buck=0.30; this.slew=0; this.stroke=rnd()*2;
   this.wt=rnd()*10; this.ph=rnd()*6.28; this.life=8+rnd()*32;
   this.moving=0; this.digging=0; this.tipping=0;
-  this.tbA=0.55; this.tsA=-1.30; this.tkA=-0.35; this.slewT=0;
+  this.tbA=-0.30; this.tsA=0; this.tkA=0.30; this.slewT=0;
   if(role===RAISE){
     this.sx=this.x; this.sz=this.z; this.ring=rnd()*Math.PI*2;
     this.best=hAt(this.x,this.z); this.lastH=this.best; this.check=0;
@@ -427,14 +427,24 @@ Machine.prototype.newJob=function(){
    given to this point, so the arm is the thing doing the work
    rather than an animation running alongside it.
    --------------------------------------------------------- */
-var L_BOOM=0.84, L_STICK=0.50, P_BOOMX=0.30, P_BOOMY=0.345, P_BOOMZ=-0.055;
+/* A telescopic boom, not a jointed arm. It pivots once at the back of the
+   machine and slides in and out; `stick` is now a length rather than an
+   angle, which is why nothing here needs an elbow. The bucket cannot be
+   drawn through its own boom because there is no joint for it to fold at. */
+var L_BASE=1.30, E_MAX=0.90, PITCH_LO=-0.80, PITCH_HI=1.15;
+/* The boom pivots high on this machine - level with the top of the cab -
+   so reaching the ground in front of it wants a good deal of down-pitch.
+   A limit of a quarter-turn was not enough and the teeth spent a third of
+   every dig in the air. */
+var P_BOOMX=-0.50, P_BOOMY=0.700, P_BOOMZ=-0.140;
+var TOOTH_X=0.275, TOOTH_Y=-0.249;     /* the cutting edge, in the bucket's own frame */
 var _tw={x:0,z:0,y:0};
 function toothWorld(a){
-  var d1=a.boom, d2=d1+a.stick, d3=d2+a.buck;
-  var px=P_BOOMX+L_BOOM*Math.cos(d1)+L_STICK*Math.cos(d2);
-  var py=P_BOOMY+L_BOOM*Math.sin(d1)+L_STICK*Math.sin(d2);
-  px+= 0.25*Math.cos(d3)+0.198*Math.sin(d3);
-  py+= 0.25*Math.sin(d3)-0.198*Math.cos(d3);
+  var d1=a.boom, d3=d1+a.buck, L=L_BASE+a.stick;
+  var px=P_BOOMX+L*Math.cos(d1);
+  var py=P_BOOMY+L*Math.sin(d1);
+  px+= TOOTH_X*Math.cos(d3)-TOOTH_Y*Math.sin(d3);
+  py+= TOOTH_X*Math.sin(d3)+TOOTH_Y*Math.cos(d3);
   var cs=Math.cos(a.slew), sn=Math.sin(a.slew);
   var lx=px*cs+P_BOOMZ*sn, lz=-px*sn+P_BOOMZ*cs;
   var ca=Math.cos(a.ang), sa=Math.sin(a.ang);
@@ -443,22 +453,16 @@ function toothWorld(a){
   _tw.y=py;
   return _tw;
 }
-/* two-link solve: put the bucket pivot at (tx,ty) measured from the boom foot */
+/* One pivot and a slide: pitch is an arctangent and extension is a
+   distance, so this always has an exact answer and there is no elbow to
+   fold. Returns the pitch and how far the inner section stands out. */
 var _ik={b:0,s:0};
 function armTo(tx,ty){
   var d=Math.sqrt(tx*tx+ty*ty);
-  /* A stick will not fold back onto its own boom. The old lower bound was
-     the bare geometric one, which let a close target ask for a hundred and
-     sixty degrees of fold - the bucket drawn through the boom, and the teeth
-     nowhere near the sand. This is the elbow at about a hundred and twenty-
-     five degrees, which is as far as the ram goes. */
-  var lo=0.706, hi=L_BOOM+L_STICK-0.02;
-  if(d<lo) d=lo; else if(d>hi) d=hi;
-  var c=(d*d-L_BOOM*L_BOOM-L_STICK*L_STICK)/(2*L_BOOM*L_STICK);
-  if(c>1) c=1; else if(c<-1) c=-1;
-  var a2=Math.acos(c);
-  _ik.s=-a2;
-  _ik.b=Math.atan2(ty,tx)+Math.atan2(L_STICK*Math.sin(a2),L_BOOM+L_STICK*Math.cos(a2));
+  if(d<L_BASE) d=L_BASE; else if(d>L_BASE+E_MAX) d=L_BASE+E_MAX;
+  var p=Math.atan2(ty,tx);
+  if(p<PITCH_LO) p=PITCH_LO; else if(p>PITCH_HI) p=PITCH_HI;
+  _ik.b=p; _ik.s=d-L_BASE;
   return _ik;
 }
 
@@ -503,9 +507,12 @@ Machine.prototype.step=function(dt,self){
   if(this.state==="work"){
     this.moving=0;
     this.stroke+=dt;
-    /* it parks and slews the house to face the work, rather than driving both ways */
+    /* There is no slewing house on a telehandler. It faces its work with the
+       whole machine, turning on the spot at the same rate its tracks used
+       to turn it, which is slower and shows. */
     var faceD=((Math.atan2(dz,dx)-this.ang+Math.PI*3)%(Math.PI*2))-Math.PI;
-    this.slewT=Math.max(-2.6,Math.min(2.6,faceD));
+    this.ang+=Math.min(Math.abs(faceD),0.55*dt)*(faceD<0?-1:1);
+    this.slewT=0;
     var reach=dist/machLen;
     if(reach<0.85) reach=0.85; else if(reach>1.50) reach=1.50;
 
@@ -543,11 +550,14 @@ Machine.prototype.step=function(dt,self){
          metre ABOVE its own pivot. Putting the teeth in the ground then
          means burying the arm to reach down to them, which is what it did
          - the pivot was under the sand 43% of the time it was digging. */
-      var d3=-0.90-0.90*q;
-      var k=armTo(r-P_BOOMX-(0.25*Math.cos(d3)+0.198*Math.sin(d3)),
-                  ty-P_BOOMY-(0.25*Math.sin(d3)-0.198*Math.cos(d3)));
-      var tk=d3-k.b-k.s;
-      if(this.idle){ this.tbA=0.55; this.tsA=-1.30; this.tkA=-0.35; }
+      /* A loading bucket does not curl under like a backhoe's. It goes in
+         nose down and rolls back as it fills, which keeps the cutting edge
+         the lowest part of the machine throughout. */
+      var d3=-0.28+0.62*q;
+      var k=armTo(r-P_BOOMX-(TOOTH_X*Math.cos(d3)-TOOTH_Y*Math.sin(d3)),
+                  ty-P_BOOMY-(TOOTH_X*Math.sin(d3)+TOOTH_Y*Math.cos(d3)));
+      var tk=d3-k.b;
+      if(this.idle){ this.tbA=-0.30; this.tsA=0; this.tkA=0.30; }
       else { this.tbA=k.b; this.tsA=k.s; this.tkA=tk; }
       /* only cuts while the teeth are actually in the ground */
       if(t.y*machLen+here <= groundAt+0.06*machLen){
@@ -580,7 +590,8 @@ Machine.prototype.step=function(dt,self){
       var r2=(this.stroke%4.6)/4.6;
       var ty2=(groundAt-here)/machLen+0.62;
       var k2=armTo(reach-P_BOOMX,ty2-P_BOOMY);
-      this.tbA=k2.b; this.tsA=k2.s; this.tkA=-1.15+1.50*r2;
+      /* rolling the bucket forward from carry to full tip */
+      this.tbA=k2.b; this.tsA=k2.s; this.tkA=(0.30-1.45*r2)-k2.b;
       if(r2>0.25){
         var give=Math.min(amt,this.load);
         this.load-=giveTo(t.x,t.z,0.55*CS,give);   /* only lose what the ground actually took */
@@ -612,7 +623,7 @@ Machine.prototype.step=function(dt,self){
       }
     }
   } else {
-    this.tbA=0.55; this.tsA=-1.30; this.tkA=-0.35; this.slewT=0;
+    this.tbA=-0.30; this.tsA=0; this.tkA=0.30; this.slewT=0;
     this.digging=0; this.tipping=0;
   }
 
