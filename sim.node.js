@@ -377,6 +377,11 @@ function reliefAt(x,z){
   }
   return n?hAt(x,z)-s/n:0;
 }
+Machine.prototype.jobPays=function(){
+  var iu=cellAt(this.ux,this.uz);
+  if(iu<0||h[iu]<=BASE) return false;
+  return (reliefAt(this.ux,this.uz)-reliefAt(this.hx,this.hz))>0;
+};
 Machine.prototype.newJob=function(){
   var lim=HALF-2*CS, cyc=2/(0.17*rateMul);
   var best=-1,bhx=null,bhz=null,bux=null,buz=null;
@@ -587,13 +592,22 @@ Machine.prototype.step=function(dt,self){
           var fy=t.y*machLen+here;
           puff(t.x+(rnd()-0.5)*0.30*machLen, fy, t.z+(rnd()-0.5)*0.30*machLen,
                (rnd()-0.5)*0.08*CS, -0.70*CS, (rnd()-0.5)*0.08*CS,
-               0.13*machLen, 1.15*machLen, 2.2+rnd()*1.0, 0.40);
+               0.22*machLen, 1.75*machLen, 2.8+rnd()*1.2, 0.60);
         }
       } else this.tipping=0;
       if(this.load<=0.02*CS){
         if(this.load>0) this.load-=giveTo(t.x,t.z,0.55*CS,this.load);
         this.mode="scoop"; this.stroke=0; this.tipping=0;
         if(this.role===RAISE){this.ring+=0.9+rnd()*0.5; this.pickScoop();}
+        /* Back to the same cut while it still pays. Choosing a fresh pair
+           of places after every single bucket is what made a filler look
+           aimless - one scoop here, a long drive, one scoop there, and
+           two thirds of its day spent travelling. Nothing that works
+           ground does that: it works a face until the face is gone. The
+           pair stops paying when the high end no longer stands prouder of
+           its surroundings than the low end lies below its own, which is
+           the same reckoning that chose the pair. No new rule. */
+        else if(this.jobPays()){ this.tx=this.ux; this.tz=this.uz; this.state="go"; }
         else this.newJob();
       }
     }
