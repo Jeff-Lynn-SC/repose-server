@@ -508,13 +508,24 @@ Machine.prototype.step=function(dt,self){
   }
   if(this.state==="work"){
     this.moving=0;
-    this.stroke+=dt;
     /* There is no slewing house on a telehandler. It faces its work with the
        whole machine, turning on the spot at the same rate its tracks used
        to turn it, which is slower and shows. */
     var faceD=((Math.atan2(dz,dx)-this.ang+Math.PI*3)%(Math.PI*2))-Math.PI;
     this.ang+=Math.min(Math.abs(faceD),0.55*dt)*(faceD<0?-1:1);
     this.slewT=0;
+    var square=Math.abs(faceD)<=0.13;
+    if(!square){
+      /* Squaring up. A machine that swings while it is emptying lays its
+         load down in an arc instead of a heap - measured, eighty degrees of
+         turn during a single tip, which halved the height of the pile and
+         spread it across two cells instead of one. It points at the job
+         first, and only then works it. Nothing is dug or tipped meanwhile;
+         the arm simply waits, which is what an arm does. */
+      this.tbA=-0.30; this.tsA=0; this.tkA=0.30;
+      this.digging=0; this.tipping=0;
+    }else{
+    this.stroke+=dt;
     var reach=dist/machLen;
     if(reach<0.85) reach=0.85; else if(reach>1.50) reach=1.50;
 
@@ -630,6 +641,7 @@ Machine.prototype.step=function(dt,self){
         else if(this.jobPays()){ this.tx=this.ux; this.tz=this.uz; this.state="go"; }
         else this.newJob();
       }
+    }
     }
   } else {
     this.tbA=-0.30; this.tsA=0; this.tkA=0.30; this.slewT=0;
