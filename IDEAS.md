@@ -76,6 +76,47 @@ put up with, which is the analogy exactly.
 
 ---
 
+## Two later notes of Jeff's — 5 September
+
+**One machine, two purposes.** He had been considering different machines for
+the raiser and the filler — a digger for one, a loader for the other — and has
+ruled it out. *The only difference between two machines is to be the goal.*
+Anything that makes a purpose legible from the shape of the thing carrying it
+weakens the point. They are the same machine. What separates them is only what
+they want, and you cannot tell by looking.
+
+**Changing purpose.** Whether a machine should be able to change its role in
+service of some larger goal.
+
+This one deserves care, because the piece as it stands turns on the fact that
+neither purpose can reconsider. A machine is born to raise or to fill and dies
+that way, so the opposition between them is not a disagreement — it is
+structural, and nobody in the world is in a position to see it. Letting a
+machine change purpose gives it something none of them currently has: a view of
+the whole. There are two versions, and they are very different pieces.
+
+- **It changes towards whatever is winning.** The larger goal is its own
+  standing. A machine stops filling because raising is where the height is.
+  That is still ego, and the pit would drift towards whichever purpose is
+  already ahead — a majority that grows because it is a majority. Bleaker than
+  what is there now, not less.
+- **It changes towards what the ground needs.** The larger goal is the world.
+  Then the machines are collectively solving something, and Repose stops being
+  about egos competing and becomes about coordination. A different piece, and
+  a kinder one.
+
+Deep time already does a weak version of the first: the era's coin sets the mix
+at birth and the population drifts. The difference is that no individual
+chooses, and no individual can know.
+
+It also has an obvious hinge with **resolve**, above: a purpose that breaks
+under repeated failure is exactly the thing that would let a machine change it.
+Resolve falling to nothing, and the machine taking up the opposite purpose,
+would be one mechanism for all of it — and it would arrive as despair rather
+than as strategy, which is more in keeping.
+
+---
+
 ## Still outstanding from the earlier brief
 
 - **Wrecks persist.** A dead machine stays where it fell, becomes an
@@ -89,7 +130,10 @@ put up with, which is the analogy exactly.
 - **Night looks flat.** Needs a moon, work lights that illuminate, adaptive
   exposure. Test with `?hour=2`.
 - **The machines look like boxes.** Settled by experiment: only geometry is
-  left. A CC-licensed glTF excavator, split into five parts (undercarriage,
-  house, boom, stick, bucket), each with its origin on its pivot.
+  left. Jeff has since named what he wants: **a JCB Loadall telehandler** —
+  four wheels, a straight telescopic boom, a wide flat loading bucket, no
+  slewing house. One machine type for both purposes (see above). Note that a
+  telehandler is a loader and cannot dig a hole beneath itself, so adopting it
+  wholesale would change what a raiser physically does. Open question.
 - **Ageing.** Damage is invisible. Paint fade, rust, dust.
 - **A globe.** Small planet versus Earth-sized.
