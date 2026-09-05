@@ -115,6 +115,69 @@ Resolve falling to nothing, and the machine taking up the opposite purpose,
 would be one mechanism for all of it — and it would arrive as despair rather
 than as strategy, which is more in keeping.
 
+### What the bigger goal actually is — Jeff, later the same day
+
+> "the bigger goal is something quite human. maybe happiness or self worth.
+> maybe reinforcing the secondary goal if it is seen as successful, eventually
+> abandoning the secondary goal if seen as failing"
+
+This inverts the piece, and for the better. Raising and filling stop being what
+a machine *is* and become what a machine *believes will work*. The purpose is
+demoted to a theory about how to feel worth something. Everything else follows:
+
+- Doing well at it confirms the theory, and the machine holds it harder.
+- Doing badly erodes it.
+- Enough failure and the theory is abandoned.
+
+Three things have to be settled for it to be buildable, and each has a right
+answer and a tempting wrong one.
+
+**1. Worth is measured against the ground, not against the others.** This is
+the important one. If a machine judges itself in the absolute — *am I gaining?*
+— then a lone machine on an empty plain is perfectly content, and the piece
+loses its subject. If it judges itself against the other machines, they have to
+perceive each other, and the founding rule goes: neither knows the other
+exists.
+
+There is a third way and it is the true one. **A raiser measures itself against
+the highest ground it can see. A filler measures itself against how level the
+world looks.** It does not need to know that another machine made that hill. It
+only sees that there is a hill, and that it is not its own. Comparison without
+any knowledge of a rival — which is both crueller and much closer to how this
+actually works in people. Nobody needs to meet the person they feel behind.
+
+**2. Abandoning a purpose is not choosing the other one.** A machine that has
+lost faith in raising cannot deduce filling; it has never heard of it. What it
+can do is take up whatever the ground immediately around it suggests is paying
+— which is what its neighbours have been doing, without it ever knowing they
+are there. Purpose would then spread by contagion among the demoralised,
+exactly as it already spreads at birth (three parts heredity to one part era).
+No new faculty is needed. The same rule, applied later in life.
+
+**3. It must not become a comfortable homeostasis.** The obvious failure of
+this idea is that it self-corrects into something tidy and mildly hopeful:
+everyone finds the purpose that suits them and settles. The bleak version, and
+the honest one, is that changing purpose does not help. The new theory is
+exactly as unlikely to deliver as the old one, and the machine has now spent
+half its life on each. Meanwhile the machines that got a good spot early never
+doubt anything, because for them it *is* working. Doubt is a luxury of the
+unsuccessful, and it costs them the little they had.
+
+**What it would look like from outside.** Machines that are getting somewhere
+work steadily and never change. Machines that are not become erratic, then
+listless, then take up the opposite work with the same conviction they had
+before and no memory of the first. Ground that is being fought over produces
+converts on both sides. A hill going up fast recruits raisers from the failed
+fillers beside it — and grows faster, and recruits more. The rich get richer,
+which was already the chosen direction for resolve.
+
+**How it joins to what is written above.** This is not a fourth idea. Resolve
+*is* self-worth: one number, hardened by success and broken by failure. Working
+hours are what a machine does with that number in the dark. Yielding is what it
+does with it when something is in its way. And now purpose itself is what it
+does with it when the number reaches the floor. Four behaviours, one quantity,
+and none of them written as a rule.
+
 ---
 
 ## Still outstanding from the earlier brief
