@@ -566,9 +566,14 @@ Machine.prototype.step=function(dt,self){
         var cut=takeFrom(t.x,t.z,0.55*CS,Math.min(amt,this.cap-this.load));
         this.load+=cut; this.got+=cut;
         this.digging=1;
-        if(rnd()<9*dt*dustGate)
-          puff(t.x,groundAt+0.05*machLen,t.z,(rnd()-0.5)*0.7*CS,0.25*CS,(rnd()-0.5)*0.7*CS,
-               0.30*machLen,1.5*machLen,1.6+rnd()*1.4,0.20);
+        /* Dust is a veil over the work, not a substitute for it. These
+           sprites grow as they drift, and at a machine length and a half
+           across they were nine metres of near-opaque white sitting on the
+           ground - you could not see the bucket through them, let alone
+           what was in it. Smaller, thinner, shorter-lived. */
+        if(rnd()<7*dt*dustGate)
+          puff(t.x,groundAt+0.05*machLen,t.z,(rnd()-0.5)*0.5*CS,0.18*CS,(rnd()-0.5)*0.5*CS,
+               0.13*machLen,0.62*machLen,1.1+rnd()*0.8,0.13);
       } else this.digging=0;
       /* two full strokes and nothing has come up: this is rock, or it has
          already been dug to nothing. Not a reason to give up on the purpose
@@ -601,11 +606,13 @@ Machine.prototype.step=function(dt,self){
         /* A fall of sand from the teeth to the ground, rather than a puff
            at the bucket. Where a load actually goes is the whole of what a
            filler does, and it was the one thing you could not see. */
-        if(rnd()<30*dt*dustGate){
+        if(rnd()<26*dt*dustGate){
           var fy=t.y*machLen+here;
-          puff(t.x+(rnd()-0.5)*0.30*machLen, fy, t.z+(rnd()-0.5)*0.30*machLen,
-               (rnd()-0.5)*0.08*CS, -0.70*CS, (rnd()-0.5)*0.08*CS,
-               0.22*machLen, 1.75*machLen, 2.8+rnd()*1.2, 0.60);
+          /* grains falling, not a cloud: small, quick, and dropping under
+             the bucket rather than blooming out around it */
+          puff(t.x+(rnd()-0.5)*0.26*machLen, fy, t.z+(rnd()-0.5)*0.26*machLen,
+               (rnd()-0.5)*0.06*CS, -0.80*CS, (rnd()-0.5)*0.06*CS,
+               0.075*machLen, 0.30*machLen, 0.85+rnd()*0.45, 0.30);
         }
       } else this.tipping=0;
       if(this.load<=0.02*CS){
@@ -719,7 +726,7 @@ function trackGround(a,dt){
     /* soft ground ruts; ground already compacted barely gives */
     if(a.moving>0 && rnd()<5*dt*dustGate)
       puff(wx,h[i]+0.04*machLen,wz,-ca*0.3*CS+(rnd()-0.5)*0.3*CS,0.10*CS,-sa*0.3*CS+(rnd()-0.5)*0.3*CS,
-           0.22*machLen,1.3*machLen,1.4+rnd()*1.2,0.13);
+           0.11*machLen,0.55*machLen,1.0+rnd()*0.8,0.09);
     var give=0.02*press*(1-w*0.85);
     if(give<=0) continue;
     if(give>h[i]*0.04) give=h[i]*0.04;
