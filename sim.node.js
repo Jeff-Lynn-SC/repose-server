@@ -617,13 +617,16 @@ Machine.prototype.step=function(dt,self){
         /* A fall of sand from the teeth to the ground, rather than a puff
            at the bucket. Where a load actually goes is the whole of what a
            filler does, and it was the one thing you could not see. */
-        if(rnd()<26*dt*dustGate){
+        /* A curtain of grains off the cutting edge, not a puff at the
+           bucket. They come out across the whole width of the edge, fall
+           fast, and are gone before they can bloom into anything cloudlike
+           - which is the difference between sand pouring and steam. */
+        if(rnd()<80*dt*dustGate){
           var fy=t.y*machLen+here;
-          /* grains falling, not a cloud: small, quick, and dropping under
-             the bucket rather than blooming out around it */
-          puff(t.x+(rnd()-0.5)*0.26*machLen, fy, t.z+(rnd()-0.5)*0.26*machLen,
-               (rnd()-0.5)*0.06*CS, -0.80*CS, (rnd()-0.5)*0.06*CS,
-               0.075*machLen, 0.30*machLen, 0.85+rnd()*0.45, 0.30);
+          var across=(rnd()-0.5)*0.52*machLen;
+          puff(t.x-Math.sin(this.ang)*across, fy, t.z+Math.cos(this.ang)*across,
+               (rnd()-0.5)*0.04*CS, -(0.95+rnd()*0.45)*CS, (rnd()-0.5)*0.04*CS,
+               0.030*machLen, 0.095*machLen, 0.45+rnd()*0.35, 0.46);
         }
       } else this.tipping=0;
       if(this.load<=0.02*CS){

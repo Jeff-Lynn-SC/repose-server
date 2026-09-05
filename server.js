@@ -30,7 +30,7 @@ const GH_EVERY = parseInt(process.env.GH_EVERY || "300000", 10);   /* five minut
    the endpoint does not exist. */
 const RESET_KEY = process.env.RESET_KEY || "";
 /* so you can tell at a glance which simulation is actually running */
-const BUILD = "2026-09-06d · it squares up before it works · the bucket drains to nothing";
+const BUILD = "2026-09-07 · the wheels turn and steer · sand heaps and pours as grains";
 let ghSha=null, ghDirty=false, ghLast=0;
 const TICK_MS   = 100;              /* how often the world is versioned */
 const SIM_HZ    = 40;               /* the simulation's own fixed step */
