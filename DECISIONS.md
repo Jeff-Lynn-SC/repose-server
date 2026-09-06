@@ -147,16 +147,100 @@ the model for what all of the above should look like.
 
 ---
 
+---
+
+## D. Pushing, added 5 September
+
+A machine can now move sand two ways: dig a bucket and carry it, or put the
+bucket on the ground and drive. Both purposes have both. Written down here
+because it added constants as well as deleting them, and the ledger should be
+honest in both directions.
+
+### What it deleted, or refused to add
+
+**The push/carry choice is not a threshold.** It is the same reckoning the
+filler already used to pick a job — sand moved per second — run twice, once
+for each way of moving it. A blade load is dead weight that eats the
+machine's grip exactly as a slope does, so a push up anything steep simply
+takes so long that the arithmetic refuses it. There is no rule about slopes
+anywhere in it. What falls out: pushing wins under about twenty-five metres
+on the flat, that distance collapses as the ground tilts, and somewhere near
+eighteen degrees it goes below the length of the machine and pushing stops
+being possible at all. Those three numbers are consequences. Change the angle
+of repose and they change.
+
+**How deep the blade cuts is not a schedule.** It is the ceiling times
+whatever grip is left over, so the cut thins away as the blade fills and
+stops altogether on a bank. And nothing charges the machine for cutting:
+what it cuts becomes load, and load is already what eats its grip.
+
+**Giving up on a shove is not a timer.** Once a second the machine asks
+whether shoving on still beats picking the bucket up and driving. Shoving is
+slower over the ground but it is still gathering; lifting is quicker and
+gathers nothing. So a machine shoves while the blade is filling and lifts
+once it is full — unless the far end is nearer than a blade takes to fill,
+in which case it shoves the whole way, which is the short haul into a
+hollow.
+
+**The raiser's ring is now chosen rather than derived.** It considers two
+distances — as far out as the sand runs back, which is the old cone, and as
+far out as a blade needs to fill, which it knows from its own bucket over its
+own blade — and takes whichever reckons better. Measured, this alone made a
+raiser reach the same height on a quarter less digging.
+
+### What it added, and what those numbers are
+
+**`PUSH_RES = 0.55`** — how much of a machine's grip a full blade eats.
+Machine build, the same family as `DRIVE` and the thirty-degree climb limit,
+and the same objection applies: every machine ever born has the same one, and
+damage should show here first.
+
+**`PUSH_CUT = 0.70` m** — the deepest a blade will ever cut. Not chosen
+freely: a blade fills over about four times its own width, which is what
+dozing looks like, so this is a bucket spread over that distance. It should
+probably stop being a constant at all and become the same quantity as the
+bucket's bite when digging, which would collapse two numbers into one.
+
+**`PUSH_SPILL = 0.004` per metre** — the fraction of the load that rolls off
+the ends of the blade as it travels. This is why nobody pushes sand across
+the pit: the world punishes a long shove rather than a rule forbidding it.
+Sampled from nothing; it is the one number here with no argument behind it
+beyond being the right order.
+
+**`BLADE_W = 0.52`** of a machine length — how wide the bucket is. A fact
+about the model, not a decision.
+
+### The thing pushing exposed
+
+A dig-and-tip cycle moves twenty-six cubic metres in about twelve seconds.
+One pass of the teeth physically cuts about four — three metres of bucket, half
+a metre of bite, two and a half metres of drag. The bucket is not being filled
+by the pass; it is being filled by `cap*0.17` a second, a rate with no
+connection to the geometry, and the seven-second stroke exists to give that
+rate time to work. That is why carrying beats shoving by a factor of twenty,
+and it is the largest untrue number in the file.
+
+---
+
 ## If it were ranked
 
-1. **Repose from the sand's history.** Removes the piece's central constant and
+1. **The bucket holds what one pass of its own teeth cuts.** Stops `cap*0.17`
+   and the seven-second stroke and the 4.6-second tip from existing, and makes
+   the machine's capacity a consequence of its width, its bite and the length
+   of its pass rather than a number. Changes the pace of the whole piece, so
+   it is not mine to do alone.
+2. **Repose from the sand's history.** Removes the piece's central constant and
    would visibly change every face in the world.
-2. **Give up, fill up, and stop digging by the same economics used to pick a
-   job.** Deletes three timers and two thresholds, and the machinery to replace
-   them is already written.
-3. **Bite depth and stroke length from what the sand gives.** Deletes two
-   schedules and would make digging in rock look different from digging in
-   loose sand.
+3. **Bite depth and stroke length from what the sand gives.** The other half of
+   1: digging in rock should look nothing like digging in loose sand, and where
+   digging has become expensive the blade should win by itself.
 4. **One carry distance, and let it define what a hollow is.** Deletes a
    constant and ties the machine's idea of the ground to its own reach.
-5. **Delete the datum rule, once relief scoring has earned its trust.**
+5. **The blade's cut and the bucket's bite should be one number, not two.**
+6. **Damage should show somewhere.** It is carried, it kills machines, and it
+   is invisible in the hydraulics, the drive speed and the grip — all three of
+   which are uniform across every machine that has ever lived.
+
+*Struck from this list on 5 September: giving up, filling up and choosing how
+to move a load are now done by the same economics that picks the job, and the
+datum rule is deleted.*

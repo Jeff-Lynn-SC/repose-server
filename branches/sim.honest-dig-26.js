@@ -289,7 +289,7 @@ var DETOUR=[0, 0.45, -0.45, 0.95, -0.95, 1.55, -1.55];
    mound is shallow and has to start lifting once the flank steepens - and
    nothing here says so. The sand decides when, by standing up.
 
-   PUSH_RES is how much of the machine's grip a full blade eats. PUSH_CUT
+   PUSH_RES is how much of the machine's grip a full blade eats. CUT_MAX
    is the deepest it will cut when it has grip to spare - it is not a
    schedule, it is a ceiling; how deep it actually cuts is whatever the
    ground it is crossing leaves it the traction for. PUSH_SPILL is the
@@ -297,7 +297,7 @@ var DETOUR=[0, 0.45, -0.45, 0.95, -0.95, 1.55, -1.55];
    travelled, which is why a long push arrives with less than it gathered
    and why nobody pushes sand across the pit.
 
-   PUSH_CUT is not free either: a blade fills over about four times its own
+   CUT_MAX is not free either: a blade fills over about four times its own
    width, which is what dozing looks like, so the deepest cut is a bucket
    spread over that distance - 26 cubic metres, a blade three metres wide,
    twelve metres of travel. And how deep it cuts on any given metre is not
@@ -307,7 +307,20 @@ var DETOUR=[0, 0.45, -0.45, 0.95, -0.95, 1.55, -1.55];
    load is already what eats its grip.
    --------------------------------------------------------- */
 var PUSH_RES=0.55, PUSH_SPILL=0.004, BLADE_W=0.52;
-var PUSH_CUT=0.70;
+/* The deepest cut this bucket can take, and it is one number whether the
+   bucket is being dragged through the sand or shoved along on the deck. It
+   used to be two. */
+var CUT_MAX=0.70;
+/* A pass of the teeth: how long it is, how fast they are pulled through,
+   and how fast the bucket rolls out when it is time to let go. Three
+   properties of the machine, in metres, metres a second and radians a
+   second - not a stroke of seven seconds and a tip of four point six, which
+   is what was here and what gave a bucket its speed. */
+var PASS=0.42, DRAG=0.60, ROLL=0.50;
+/* and the two angles of the bucket that matter: past the first it can no
+   longer hold what is in it, and at the second there is nothing left. Those
+   are facts about the shape of a bucket. */
+var SPILL_AT=-0.15, EMPTY_AT=-1.05;
 /* What is left of a machine's grip once the slope and whatever is on the
    blade have taken theirs. One expression, and it is used three times: to
    drive, to decide how deep to cut, and to decide whether pushing is worth
@@ -340,7 +353,7 @@ function Machine(role,atGate,px,pz){
      it - and cleared again by the next bucket that arrives whole. It stops
      a machine trying the same impossible shove over and over, without
      anybody writing down what an impossible shove is. */
-  this.noPush=0; this.lifted=0;
+  this.noPush=0; this.lifted=0; this.gotPass=0;
   this.boom=-0.30; this.stick=0; this.buck=0.30; this.slew=0; this.stroke=rnd()*2;
   this.wt=rnd()*10; this.ph=rnd()*6.28; this.life=8+rnd()*32;
   this.moving=0; this.digging=0; this.tipping=0;
@@ -380,7 +393,7 @@ Machine.prototype.pickScoop=function(){
      raiser on flat ground goes out far enough to shove a full blade home,
      and one on a mound that has grown steep finds the far ring worthless
      and comes back to digging. Nobody wrote the changeover. */
-  var fillR=this.cap*CS*CS/(BLADE_W*machLen*PUSH_CUT*traction(0,0.5));
+  var fillR=this.cap*CS*CS/(BLADE_W*machLen*CUT_MAX*traction(0,0.5));
   var bR=R, bRate=-1, bPush=false;
   for(var c=0;c<2;c++){
     var rr=c?Math.max(R,Math.min(HALF*0.45,fillR)):R;
@@ -452,6 +465,22 @@ function reliefAt(x,z){
   }
   return n?hAt(x,z)-s/n:0;
 }
+/* How long a dig and a tip take this machine, worked out rather than set.
+   A pass sweeps the width of the bucket by the depth of its cut by the
+   length of the pass, so a bucket takes as many passes as that volume needs,
+   each of them lasting as long as it takes to drag the teeth their own pass
+   length; and then the bucket has to roll out. Nothing in here is a clock.
+   Dig in ground that gives nothing and the passes still cost their time,
+   which is how digging in rock comes to be expensive without anybody saying
+   that it should be. */
+function perPass(){ return BLADE_W*machLen*CUT_MAX*(PASS*machLen)/(CS*CS); }
+function tipTime(){ return (0.30-EMPTY_AT)/(ROLL*rateMul); }
+function digCycle(cap){
+  var v=perPass();
+  var passes=(v>0)?Math.max(1,cap/v):1;
+  return passes*(PASS*machLen/(DRAG*rateMul))+tipTime();
+}
+
 /* What a job is worth, in sand moved per second, by whichever of the two
    ways of moving it is better - and which of them that is.
 
@@ -470,7 +499,7 @@ var _rk={rate:0,push:false};
 Machine.prototype.reckon=function(ux,uz,hx,hz,gain){
   var ax=ux-this.x, az=uz-this.z, d1=Math.sqrt(ax*ax+az*az);
   var bx=hx-ux, bz=hz-uz, d2=Math.sqrt(bx*bx+bz*bz);
-  var cyc=2/(0.17*rateMul);                    /* a dig and a tip */
+  var cyc=digCycle(this.cap);                  /* a dig and a tip */
   var climb=(d2>1e-6)?(hAt(hx,hz)-hAt(ux,uz))/d2:0;
   var g0=traction(climb,0), gb=traction(-climb,0), gp=traction(climb,0.5);
   var app=d1/DRIVE;
@@ -483,7 +512,7 @@ Machine.prototype.reckon=function(ux,uz,hx,hz,gain){
        and a short shove therefore turns up half empty. Reckoning on a full
        blade was the one dishonest number in here, and it made the machine
        choose twelve-metre shoves that gathered two thirds of a load. */
-    var fill=BLADE_W*machLen*PUSH_CUT*gp*d2/(CS*CS);
+    var fill=BLADE_W*machLen*CUT_MAX*gp*d2/(CS*CS);
     var frac=fill/this.cap; if(frac>1) frac=1;
     rp=gain*frac*Math.exp(-PUSH_SPILL*d2)/(app+d2/(DRIVE*gp)+tBack);
   }
@@ -518,9 +547,9 @@ Machine.prototype.stillWorthShoving=function(){
      the short haul into a hollow. And on a bank the cut thins to nothing,
      so there is nothing left to gather and it lifts early. */
   var room=this.cap-this.load;
-  var more=BLADE_W*machLen*PUSH_CUT*gp*d/(CS*CS); if(more>room) more=room;
+  var more=BLADE_W*machLen*CUT_MAX*gp*d/(CS*CS); if(more>room) more=room;
   var rPush=(this.load+more)*Math.exp(-PUSH_SPILL*d)/(d/(DRIVE*gp));
-  var rLift=this.load/(d/(DRIVE*gc)+1/(0.17*rateMul));   /* the drive, and the tip */
+  var rLift=this.load/(d/(DRIVE*gc)+tipTime());        /* the drive, and the tip */
   return rPush>rLift;
 };
 Machine.prototype.jobPays=function(){
@@ -677,7 +706,7 @@ Machine.prototype.step=function(dt,self){
          nothing at all while shoving a full one up a bank, and thins its
          own cut away as it fills - which is what the shallow scrape behind
          a dozing machine actually is. */
-      var cutD=pushing?PUSH_CUT*gf:0;
+      var cutD=pushing?CUT_MAX*gf:0;
       var sp=DRIVE*gf*_avBrake*dt;
       this.x+=Math.cos(this.ang)*sp; this.z+=Math.sin(this.ang)*sp;
       this.moving=sp/dt;
@@ -750,12 +779,16 @@ Machine.prototype.step=function(dt,self){
        nothing to tip: the sand is already lying on the ground in front of
        the blade, and all the machine does is roll the bucket forward and
        let go of it. */
-    this.moving=0; this.digging=0; this.stroke+=dt;
-    var roll=-0.12+0.62*Math.min(1,this.stroke/1.6);
+    this.moving=0; this.digging=0;
+    /* the same bucket rolling forward at the same rate as any other tip,
+       and letting go of what it can no longer hold */
+    this.stroke+=ROLL*rateMul*dt;
+    var roll=-0.12-this.stroke; if(roll<EMPTY_AT) roll=EMPTY_AT;
     var ts=this.bladePose(here,-0.04,roll);
-    if(this.load>0){
-      var out=this.cap*0.55*rateMul*dt;
-      this.load-=giveTo(ts.x,ts.z,0.7*CS,out<this.load?out:this.load);
+    var shold=(roll-EMPTY_AT)/(SPILL_AT-EMPTY_AT); if(shold>1) shold=1; else if(shold<0) shold=0;
+    var skeep=this.cap*shold;
+    if(this.load>skeep){
+      this.load-=giveTo(ts.x,ts.z,0.7*CS,this.load-skeep);
       this.tipping=1;
       if(rnd()<50*dt*dustGate){
         var acr=(rnd()-0.5)*0.6*machLen;
@@ -764,13 +797,15 @@ Machine.prototype.step=function(dt,self){
              0.030*machLen, 0.10*machLen, 0.45+rnd()*0.3, 0.42);
       }
     } else this.tipping=0;
-    if(this.load<=0.02*CS || this.stroke>6){
-      if(this.load>0) this.load-=giveTo(ts.x,ts.z,0.7*CS,this.load);
-      this.tipping=0; this.stroke=0;
+    if(this.load<=0){
+      this.tipping=0; this.stroke=0; this.gotPass=0;
       /* A push that gathered next to nothing was a push that should not
          have been attempted, and the machine has just been told so by the
          ground rather than by a rule. It carries the next one. */
-      this.noPush = this.got<0.15*this.cap ? 1 : 0;
+      /* the same test the dig uses: it either gathered something worth
+         having or the ground beat it. A shove that ends with a blade the
+         machine could have lifted is a shove that worked. */
+      this.noPush = this.got<perPass() ? 1 : 0;
       this.got=0;
       if(this.role===RAISE){ this.ring+=0.9+rnd()*0.5; this.pickScoop(); }
       else if(this.jobPays()){ this.mode="scoop"; this.tx=this.ux; this.tz=this.uz; this.state="go"; }
@@ -796,44 +831,52 @@ Machine.prototype.step=function(dt,self){
       this.tbA=-0.30; this.tsA=0; this.tkA=0.30;
       this.digging=0; this.tipping=0;
     }else{
-    this.stroke+=dt;
     var reach=dist/machLen;
     if(reach<0.85) reach=0.85; else if(reach>1.50) reach=1.50;
 
     var t=toothWorld(this);
     var groundAt=hAt(t.x,t.z);
-    var amt=this.idle?0:this.cap*(this.mode==="scoop"?0.17:0.40)*rateMul*dt;
-    if(this.idle && this.stroke>6){ this.stroke=0; this.newJob(); }
+    /* `stroke` is no longer seconds. Digging, it is how far through a pass
+       the teeth have got, nought to one. Tipping, it is how far the bucket
+       has rolled, in radians. Both advance because something physical is
+       happening, and neither advances while it is not. */
+    if(this.idle){ this.stroke+=dt*0.2; if(this.stroke>1){ this.stroke=0; this.newJob(); } }
 
     if(this.mode==="scoop"){
-      var q=(this.stroke%7.0)/7.0;
+      /* A PASS OF THE TEETH.
+
+         What was here was a seven-second clock: the bucket filled at a
+         seventeenth of itself a second whatever it was digging in, the teeth
+         swung on a sine, and the pass ended when the clock said so. None of
+         that was connected to the sand.
+
+         What a pass actually is: the teeth go in at the depth the bucket can
+         cut and are dragged back through the ground the length of the pass,
+         and what comes up is the width of the bucket times that depth times
+         how far they were dragged. The clock is gone. `stroke` counts how far
+         through the pass the teeth have got, and it only advances while they
+         are actually in the sand - a machine waving its bucket in the air
+         makes no progress, which it should not.
+
+         Everything else follows. A bucket takes as many passes as its volume
+         needs. Ground that gives nothing costs the same passes and yields
+         nothing, so digging in rock is slow without anybody deciding that it
+         should be, and a pass that comes up empty is how a machine learns
+         this piece of ground is finished. */
+      var q=this.stroke; if(q>1) q=1;
       /* drag the teeth back through the sand as the bucket closes */
-      var r=reach-0.42*q;
-      /* How far the teeth run below the surface. This was a fraction of a
-         machine length, and a machine is six metres, so it asked for a
-         cut nearly two metres deep - the arm buried to the boom, because
-         the boom has to follow its own teeth down. A bucket takes a
-         bucket's depth. Metres. */
-      var bite=0.10+0.45*Math.sin(Math.PI*q);
+      var r=reach-PASS*q;
+      /* How far the teeth run below the surface. A bucket takes a bucket's
+         depth, and the same depth whether it is dragging it through a face
+         or shoving it along the deck - one number for both, where there
+         used to be a curve here and a ceiling over there. */
+      var bite=CUT_MAX;
       /* Aim the teeth, not the bucket pivot. armTo places the pivot; the
          teeth hang off the bucket a quarter of a length out and a fifth
          down, and which way that points depends on how far the bucket has
-         curled. There used to be a flat +0.28 here standing in for it - a
-         machine-length fudge that grew with the machine into most of two
-         metres of daylight, and the wrong way up once the bucket closed.
-         Solve once, see where the teeth actually landed, take that off,
-         solve again. */
+         curled. Solve once, see where the teeth actually landed, take that
+         off, solve again. */
       var ty=(groundAt-here-bite)/machLen;
-      /* The attitude of the bucket in the world, not against the stick:
-         teeth down and forward going in, curling under as it fills. Held
-         in this range the teeth are the lowest thing on the machine, so
-         the bucket pivot - and the stick above it - stay out of the sand.
-         The schedule before was an angle relative to the stick, and with
-         the stick hanging it came out at about a hundred and fifty degrees
-         from level: the bucket rolled right back with its teeth nearly a
-         metre ABOVE its own pivot. Putting the teeth in the ground then
-         means burying the arm to reach down to them, which is what it did
-         - the pivot was under the sand 43% of the time it was digging. */
       /* A loading bucket does not curl under like a backhoe's. It goes in
          nose down and rolls back as it fills, which keeps the cutting edge
          the lowest part of the machine throughout. */
@@ -843,51 +886,64 @@ Machine.prototype.step=function(dt,self){
       var tk=d3-k.b;
       if(this.idle){ this.tbA=-0.30; this.tsA=0; this.tkA=0.30; }
       else { this.tbA=k.b; this.tsA=k.s; this.tkA=tk; }
-      /* only cuts while the teeth are actually in the ground */
-      if(t.y*machLen+here <= groundAt+0.06*machLen){
-        var cut=takeFrom(t.x,t.z,0.55*CS,Math.min(amt,this.cap-this.load));
-        this.load+=cut; this.got+=cut;
-        this.digging=1;
-        /* Dust is a veil over the work, not a substitute for it. These
-           sprites grow as they drift, and at a machine length and a half
-           across they were nine metres of near-opaque white sitting on the
-           ground - you could not see the bucket through them, let alone
-           what was in it. Smaller, thinner, shorter-lived. */
-        if(rnd()<7*dt*dustGate)
+      /* only cuts, and only gets anywhere, while the teeth are in the ground */
+      if(!this.idle && t.y*machLen+here <= groundAt+0.06*machLen){
+        var travel=DRAG*rateMul*dt;                       /* metres of teeth through sand */
+        this.stroke+=travel/(PASS*machLen);
+        var room=this.cap-this.load;
+        var swept=BLADE_W*machLen*bite*travel/(CS*CS);    /* cubic metres, as a height */
+        var cut=takeFrom(t.x,t.z,0.55*CS,swept<room?swept:room);
+        this.load+=cut; this.got+=cut; this.gotPass+=cut;
+        this.digging=cut>0?1:0;
+        /* Dust is a veil over the work, not a substitute for it. */
+        if(cut>0 && rnd()<7*dt*dustGate)
           puff(t.x,groundAt+0.05*machLen,t.z,(rnd()-0.5)*0.5*CS,0.18*CS,(rnd()-0.5)*0.5*CS,
                0.13*machLen,0.62*machLen,1.1+rnd()*0.8,0.13);
       } else this.digging=0;
-      /* two full strokes and nothing has come up: this is rock, or it has
-         already been dug to nothing. Not a reason to give up on the purpose
-         — only on this piece of ground. */
-      if(this.stroke>14){
-        var barren=this.got<0.004*this.cap;
-        this.stroke=0; this.got=0;              /* the last two strokes, not the whole visit */
-        if(barren){
-          this.digging=0;
-          if(this.role===RAISE){ this.ring+=0.9+rnd()*0.5; this.pickScoop(); }
-          else this.newJob();
-        }
-      }
-      else if(this.load>=this.cap-0.05*CS){
-        this.mode="dump"; this.stroke=0; this.got=0; this.digging=0;
+
+      if(this.load>=this.cap){
+        /* full. Curl out and go, without waiting for the pass to finish -
+           there is nowhere left to put anything. */
+        this.mode="dump"; this.stroke=0; this.got=0; this.gotPass=0; this.digging=0;
         if(this.role===RAISE){this.tx=this.sx;this.tz=this.sz;}
         else{this.tx=this.hx;this.tz=this.hz;}
         this.state="go";
       }
-    }else{
-      var r2=(this.stroke%4.6)/4.6;
+      else if(this.stroke>=1){
+        /* the pass is finished. If it came up with nothing, this ground has
+           nothing to give - it is rock, or it has already been dug away -
+           and that is the only thing that ever tells a machine to look
+           elsewhere. No timer, and no fraction of a bucket to compare
+           against: it either brought sand up or it did not. */
+        var barren=this.gotPass<=0;
+        this.stroke=0; this.gotPass=0;
+        if(barren){
+          this.digging=0; this.got=0;
+          if(this.role===RAISE){ this.ring+=0.9+rnd()*0.5; this.pickScoop(); }
+          else this.newJob();
+        }
+      }
+        }else{
+      /* THE TIP.
+
+         Also not a clock. The bucket rolls forward at the speed its ram
+         moves it, and sand leaves when the bucket can no longer hold it,
+         which is a matter of the angle it is at. Past the spilling angle it
+         keeps less and less, and at the emptying angle it keeps nothing.
+         So a full bucket pours for longer than a half-empty one, which is
+         true and was not modelled, and neither the four-point-six seconds
+         nor the two-per-cent-of-a-cell that used to end this exist. */
+      this.stroke+=ROLL*rateMul*dt;                 /* radians rolled */
+      var roll=0.30-this.stroke; if(roll<EMPTY_AT) roll=EMPTY_AT;
       var ty2=(groundAt-here)/machLen+0.62;
       var k2=armTo(reach-P_BOOMX,ty2-P_BOOMY);
-      /* rolling the bucket forward from carry to full tip */
-      this.tbA=k2.b; this.tsA=k2.s; this.tkA=(0.30-1.45*r2)-k2.b;
-      if(r2>0.25){
-        var give=Math.min(amt,this.load);
-        this.load-=giveTo(t.x,t.z,0.55*CS,give);   /* only lose what the ground actually took */
+      this.tbA=k2.b; this.tsA=k2.s; this.tkA=roll-k2.b;
+      /* what a bucket at this angle will still hold */
+      var hold=(roll-EMPTY_AT)/(SPILL_AT-EMPTY_AT); if(hold>1) hold=1; else if(hold<0) hold=0;
+      var keep=this.cap*hold;
+      if(this.load>keep){
+        this.load-=giveTo(t.x,t.z,0.55*CS,this.load-keep);
         this.tipping=1;
-        /* A fall of sand from the teeth to the ground, rather than a puff
-           at the bucket. Where a load actually goes is the whole of what a
-           filler does, and it was the one thing you could not see. */
         /* A curtain of grains off the cutting edge, not a puff at the
            bucket. They come out across the whole width of the edge, fall
            fast, and are gone before they can bloom into anything cloudlike
@@ -900,9 +956,8 @@ Machine.prototype.step=function(dt,self){
                0.030*machLen, 0.095*machLen, 0.45+rnd()*0.35, 0.46);
         }
       } else this.tipping=0;
-      if(this.load<=0.02*CS){
-        if(this.load>0) this.load-=giveTo(t.x,t.z,0.55*CS,this.load);
-        this.mode="scoop"; this.stroke=0; this.tipping=0;
+      if(this.load<=0){
+        this.mode="scoop"; this.stroke=0; this.gotPass=0; this.tipping=0;
         /* a bucket that arrived whole earns the machine the right to try
            shoving the next one again - unless this bucket only arrived
            whole because the shove was abandoned and it was carried */

@@ -240,7 +240,13 @@ function pack(since){
     b.writeInt16LE(ang(a.stick),o); o+=2;
     b.writeInt16LE(ang(a.buck),o); o+=2;
     b.writeInt16LE(ang(a.slew),o); o+=2;
-    b.writeUInt8(Math.max(0,Math.min(255,Math.round(a.load/a.cap*255))),o); o+=1;
+    /* The top bit says the load is being shoved along the ground rather
+       than carried, so the browser can draw it in front of the cutting
+       edge instead of inside the bucket. Seven bits is still a hundred and
+       twenty-eight steps of fullness, which is finer than anyone can see,
+       and the packet does not grow by a byte. */
+    b.writeUInt8((a.mode==="push"?128:0)|
+                 Math.max(0,Math.min(127,Math.round(a.load/a.cap*127))),o); o+=1;
     b.writeUInt8(a.role,o); o+=1;
     b.writeUInt8(Math.max(0,Math.min(255,Math.round(a.flash*255))),o); o+=1;
   }
