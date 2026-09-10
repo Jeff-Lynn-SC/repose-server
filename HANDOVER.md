@@ -1,7 +1,7 @@
 # Repose — where things stand, and what comes next
 
-Paste this at the start of a new session. Written 5 September 2026, replacing
-the version of 7 September.
+Paste this at the start of a new session. Written 6 September 2026, replacing
+the version of 5 September.
 
 ## What Repose is
 
@@ -48,8 +48,9 @@ python3 -m http.server 8099
 # http://127.0.0.1:8099/test.html?dev&pop=2
 ```
 
-Playwright and Chromium are installed (`/home/claude/.npm-global/lib/node_modules/playwright`;
-launch with `args:['--use-gl=swiftshader','--enable-unsafe-swiftshader','--no-sandbox']`).
+Playwright is installed and Chromium is preinstalled at `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`
+(do not run `playwright install`; launch with
+`args:['--use-gl=swiftshader','--enable-unsafe-swiftshader','--no-sandbox']`).
 Give it about forty-five seconds to boot the world, then screenshot.
 
 `branches/mktest.sh` builds `test.html` from `index.html` with a hook exposing
@@ -166,43 +167,85 @@ where the operator sits, just outside the windscreen because the seat is inside
 a box whose inside faces are not drawn, and looks along the boom at the ground
 the machine is about to work. There is no button for it yet.
 
-## The three things waiting on Jeff
+## The dig made honest — 6 September
 
-These are asked and unanswered, and everything else is downstream of them.
+Jeff answered the three questions above with one sentence, twice: *the same
+rule as always, match reality.*
 
-**1. The bucket.** A pass of the teeth physically cuts about 5.5 m³ — three
-metres of bucket, seven tenths of a metre of bite, two and a half metres of
-drag. The bucket is set to 26. So the pass is not filling the bucket: `cap*0.17`
-a second is, a rate with no connection to the geometry, and the seven-second
-stroke exists to give that rate time to work. Either the bucket stays at 26 and
-takes five passes, or it becomes what one pass cuts. Measured, both, in
-`branches/NOTES.md`. The small bucket is better at both purposes on a third of
-the sand.
+**The bucket holds what the bucket holds.** It was 26 cubic metres and the
+bucket drawn on the screen holds about a seventh of that: the machine you
+watched and the machine that moved the sand were not the same machine. A
+loader bucket is a triangle in section — back plate, floor, and the opening
+running from the top of the back plate down to the teeth — and those numbers
+are in `BK_BACK`, `BK_TOP`, `BK_WIDE` and the cutting edge, set to match
+`GEO_BUCKET` in the page and required to stay that way. It comes out at
+**3.6 m³**. Redraw the bucket and everything follows.
 
-**2. The collapse event.** `now < this.best - 0.55` is a bare number, and one
-tip of the bucket puts 0.46 m onto a cell. Measured over eight raisers and half
-an hour: 85 collapses, median 0.56 m, largest 1.06 m, seventy-seven of the
-eighty-five between 0.50 and 0.75. Not one of them was a hill coming down. The
-piece's most dramatic event is mostly counting the size of a bucket. `relax`
-already knows how much sand it moved and there is already an event for a face
-actually failing; that is where the raiser's sense of it should come from.
+**The depth of cut follows from it.** A loading shovel fills its bucket in one
+pass, so the cut is the bucket over the width of the bucket and the length of
+a pass — half a metre. Digging and dozing now share one `CUT_MAX` where they
+had two.
 
-**3. Whether to land the honest dig at all.** Built and measured on both
-branches, not wired in.
+**A pass is a sweep, not a clock.** The seven-second stroke, the 4.6-second
+tip, `cap*0.17` a second, "full is two thirds", "empty is a tenth" and the
+fourteen-second give-up are gone. What comes up is width × depth × how far the
+teeth were dragged. A pass that comes up empty is the whole of how a machine
+learns this ground is finished. The tip is the bucket rolling at the speed its
+ram moves it, letting go of whatever it can no longer hold.
 
-## What to build next, after those
+**A hill coming down is the sand refusing.** `relax` is the only thing that
+lowers ground without a machine doing it. Each raiser notes where its summit
+stood, the sand settles, and whatever `relax` took out of it is a slump. What
+counts as failing is the machine's own bucket. There is no constant in it.
 
-1. **The honest dig**, per above.
-2. **Wrecks persist.** Machines accumulate damage and break down. A wreck stays
+Measured, eight machines, forty minutes: a raiser's summit reaches +1.66 m
+above the ground around it and is still climbing, on 2,740 m³. The old code
+reached +3.42 m on 15,263 m³ and had begun falling back at half an hour. Half
+the height, a fifth of the sand, two and a half times as much hill per cubic
+metre. Fillers: relief −0.0072 against −0.0048 on a quarter of the sand.
+
+Collapses are now rare and real. Zero in forty minutes where the old code
+counted 135, because the old ones were bucket-sized noise and the new summits
+have not yet reached an angle the sand will refuse. When one happens it will
+be a hill.
+
+## The wheels made real — 10 September
+
+They were twice the size they should be, and nobody could say so from a
+description. `WR` is a radius and it was carrying a diameter: `.215*machLen`
+is 1.29 m, which is what a 460/70 R24 measures across, not out from the
+middle. Same for `WW`. Tyres are now **1.53 m across and 0.56 m wide** on a
+**4.07 m wheelbase**, and the rim and the hub no longer stand wider than the
+tyre they sit in.
+
+The tread was nine blocks a metre apart, each a third of a metre thick and
+standing 9 cm proud, which is a cog and not a tyre. It is sixteen blocks
+30 cm apart standing 4 cm proud.
+
+**The body did not move, and that was a decision.** A machine's ride height
+*is* its wheel radius — `AX` equalled `WR`, so shrinking the wheels drops the
+body, and the body carries the boom pivot at `y=0.700`, which is a constant
+in `toothWorld` and therefore in the simulation. Moving it moves the teeth
+and the dig has to be measured again. So `AX` stayed where it was and only
+the axles and the wheel centres came down.
+
+The cost is visible from above: the body is 3.34 m wide and the tyres now
+reach 3.49 m, so the wheels barely show. **The body is about 1.4× too wide
+and the cab roof stands at 4.55 m against a real Loadall's 2.49 m.** That is
+the next thing, and it is a simulation change, not a drawing change.
+
+## What to build next
+
+1. **Wrecks persist.** Machines accumulate damage and break down. A wreck stays
    where it fell, becomes an obstacle, and is buried or built on.
-3. **Goal-seeking proper for the raiser.** It still digs around a ring rather
+2. **Goal-seeking proper for the raiser.** It still digs around a ring rather
    than considering standing on a hill someone else built, or taking a summit
    already occupied. The ring is now chosen rather than derived, which is a
    start.
-4. **Accidental or otherwise.** Nothing lets one machine act on another. Not
+3. **Accidental or otherwise.** Nothing lets one machine act on another. Not
    aggression: if a raiser pursues height without regard, burying a stranded
    machine is the consequence of not caring.
-5. **Repose from the sand's history.** Removes the piece's central constant.
+4. **Repose from the sand's history.** Removes the piece's central constant.
    Freshly tipped sand stands shallow, settled sand stands steeper, sand that
    has just avalanched is loose again, driven-over sand is packed — which is
    already modelled as `wear`. Then there is no angle of repose anywhere in the
@@ -364,6 +407,11 @@ comparison of `h[...]` or a height against a small constant.
 
 Check your own arithmetic before reporting a number. Derive units explicitly.
 
+**A comment beside a constant is not the constant.** `var BUILT=1788622677212`
+carried the comment `/* 2026-09-07 15:37 UTC */`. The value is 2026-09-05
+15:37. A whole session was spent believing there was a 7 September to deploy;
+there was not, and nothing had been pushed since the 6th. Decode the number.
+
 Beware anything that must contain a grid cell. Any code that gathers cells
 within a distance needs a fallback for gathering none.
 
@@ -375,6 +423,24 @@ Test headlessly wherever possible. `sim.node.js` runs in node. Reproduce his
 exact conditions, not a convenient population — two machines on a kilometre
 behaves nothing like forty. Do not run the simulation through `eval` or `vm`;
 V8 cannot optimise it and it goes about a hundred times slower.
+
+**Measure the thing the machine is trying to do, where it is trying to do it.**
+For most of a session the raisers were judged by the relief of a whole square
+kilometre, which one machine working a thirty-metre patch cannot move. By that
+figure the live code fails too — a control run is what showed it. What a raiser
+wants is its own summit standing higher above the ground around it, which is
+what it computes for itself, and measured that way the answer was the opposite.
+
+**A pass, a stroke or a cycle needs a way to end that does not depend on it
+succeeding.** Making the dig end when the bucket stopped taking sand left a
+raiser standing in one place for a whole thirty-minute run, because it had dug
+the ground away below its own reach and nothing was left to tell it so. The
+arm moving is what finishes a pass; sand arriving is only what fills it.
+
+**Do not cache what has to stay in step with something else.** The summit cell
+was remembered rather than looked up, to save two divides, and the first time
+a summit was set somewhere that did not also set the cache the collapse stopped
+happening at all — silently, and the run still looked plausible.
 
 **Run long enough.** Thirty minutes said the small bucket stopped raisers
 raising. An hour said the opposite, and that the big bucket builds a hill and

@@ -149,6 +149,79 @@ the model for what all of the above should look like.
 
 ---
 
+## E. The dig made honest, 6 September
+
+Answered by Jeff with one sentence, twice: *the same rule as always, match
+reality.*
+
+**The bucket holds what the bucket holds.** It was 26 cubic metres, which is
+about seven times what the bucket drawn on the screen can physically contain.
+The machine you watched and the machine that moved the sand were not the same
+machine. A loader bucket is a triangle in section - back plate, floor, and the
+opening running from the top of the back plate down to the teeth - and those
+four numbers are already in the model. This one holds **3.6 cubic metres**.
+Redraw the bucket and the physics follows without anybody touching a capacity.
+
+**The depth of cut is not a number.** A loading shovel fills its bucket in one
+pass, so the cut is the bucket spread over the width of the bucket and the
+length of a pass. It comes out at half a metre. `CUT_MAX` and `PUSH_CUT` were
+two numbers and are now none.
+
+**A pass is a sweep, not a clock.** The seven-second stroke, the 4.6-second
+tip, the fill rate of `cap*0.17` a second, "full is two thirds", "empty is a
+tenth" and the fourteen-second give-up are all gone. What comes up is the
+width of the bucket times the depth of cut times how far the teeth were
+dragged. Ground that gives nothing costs the same pass and yields nothing, so
+digging in rock is slow because it is rock. A pass that comes up empty is the
+whole of how a machine learns this ground is finished.
+
+**The tip is an angle, not a clock.** The bucket rolls at the speed its ram
+moves it, and sand leaves when the bucket can no longer hold it. A full bucket
+pours for longer than a half-empty one, which is true and was not modelled.
+
+**The collapse comes from the sand.** It was `now < this.best - 0.55`, and one
+tip used to put 0.46 m onto a cell, so the test could not tell a hill failing
+from a bucket being moved: measured, 85 collapses in half an hour, median
+0.56 m, largest 1.06 m, not one of them a hill. The only thing that lowers
+ground without a machine doing it is `relax`, which is the sand refusing to
+stand where it was put. Each raiser notes where its summit stood, the sand is
+allowed to settle, and whatever `relax` took out of that summit is a slump and
+nothing else. What counts as failing is the machine's own bucket. No constant
+in it at all. Tested: a six-metre spike on a summit fires it once; three
+minutes of ordinary work beside it fires nothing.
+
+New, and all of them a rate or an angle of the machine rather than a schedule:
+`DRAG` (0.60 m/s, how fast the teeth are pulled through sand), `ROLL`
+(0.50 rad/s), `PASS` (0.42 machine lengths), and `SPILL_AT`/`EMPTY_AT`, the
+two angles at which a bucket starts and finishes letting go.
+
+### What it cost and what it bought
+
+Eight machines, forty minutes, same world. A raiser's purpose measured where
+it actually lives - how far its own summit stands above the ground around it -
+because the figure used before averaged over a whole kilometre that one
+machine cannot reach, and by that figure the old code failed too.
+
+| | summit after 40 min | sand moved | collapses |
+|---|---|---|---|
+| before | +3.42 m, and falling back from +3.52 | 15,263 m³ | 135 |
+| after | +1.66 m and still climbing | 2,740 m³ | 0 |
+
+Half the height on a fifth of the sand, which is two and a half times as much
+hill per cubic metre - and where the old one plateaued and began losing ground
+at half an hour, this one had not stopped. Fillers: relief −0.0072 against
+−0.0048, on 2,300 m³ against 10,000.
+
+Two faults found on the way, both of the usual kind. A raiser stood still for a
+whole thirty-minute run, because a pass that could only end when sand arrived
+never ended if sand never arrived; the pass now advances because the arm is
+moving. And letting a raiser work one face until it was gone - which is right
+for a filler - had it park between a hole and a heap thirteen metres apart and
+spend half an hour turning on the spot: every bucket it lands pushes its own
+repose cone out past the cut it just made, so it has to keep moving round.
+
+---
+
 ## D. Pushing, added 5 September
 
 A machine can now move sand two ways: dig a bucket and carry it, or put the
@@ -224,23 +297,29 @@ and it is the largest untrue number in the file.
 
 ## If it were ranked
 
-1. **The bucket holds what one pass of its own teeth cuts.** Stops `cap*0.17`
-   and the seven-second stroke and the 4.6-second tip from existing, and makes
-   the machine's capacity a consequence of its width, its bite and the length
-   of its pass rather than a number. Changes the pace of the whole piece, so
-   it is not mine to do alone.
-2. **Repose from the sand's history.** Removes the piece's central constant and
-   would visibly change every face in the world.
-3. **Bite depth and stroke length from what the sand gives.** The other half of
-   1: digging in rock should look nothing like digging in loose sand, and where
-   digging has become expensive the blade should win by itself.
-4. **One carry distance, and let it define what a hollow is.** Deletes a
-   constant and ties the machine's idea of the ground to its own reach.
-5. **The blade's cut and the bucket's bite should be one number, not two.**
-6. **Damage should show somewhere.** It is carried, it kills machines, and it
-   is invisible in the hydraulics, the drive speed and the grip — all three of
-   which are uniform across every machine that has ever lived.
+1. **Repose from the sand's history.** Removes the piece's central constant and
+   would visibly change every face in the world. Freshly tipped sand stands
+   shallow, settled sand stands steeper, sand that has just avalanched is loose
+   again, driven-over sand is packed - which is already modelled as `wear`.
+2. **The raiser still builds on ground it prepared itself.** It digs a ring
+   round its own summit and never considers standing on a hill somebody else
+   made, or taking a summit already occupied. The ring is chosen by reckoning
+   now, which is a start and not an answer.
+3. **How hard to think is itself a decision.** A filler considers 28
+   candidates, always. It could look harder when the best thing it has found is
+   poor and stop early when something obviously good turns up.
+4. **One carry distance, and let it define what a hollow is.** The 38 m over
+   which relief is measured should be the distance the machine is willing to
+   carry, which would collapse two constants into one.
+5. **Damage should show somewhere.** It is carried, it kills machines, and it
+   is invisible in the hydraulics, the drive speed and the grip - all three of
+   which are identical in every machine that has ever lived.
+6. **`PUSH_SPILL` has no argument behind it.** 0.004 of the blade load per
+   metre. Everything else in the pushing arithmetic can be defended; this
+   cannot, beyond being the right order.
 
-*Struck from this list on 5 September: giving up, filling up and choosing how
-to move a load are now done by the same economics that picks the job, and the
-datum rule is deleted.*
+*Struck from this list: the datum rule is deleted; giving up, filling up and
+choosing how to move a load are done by the same economics that picks the job;
+the bucket holds what the bucket holds and the depth of cut follows from it;
+the stroke and the tip are a sweep and an angle rather than two clocks; and a
+hill coming down is the sand refusing rather than a number.*
