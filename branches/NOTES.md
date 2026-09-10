@@ -66,9 +66,34 @@ conservation and that nothing goes non-finite.
 other. Proves every anchor before writing anything and checks afterwards.
 
 `mktest.sh [red]` — builds `test.html` from `index.html` with a hook exposing
-the camera and a way to stop the world. Never push `test.html`. The optional
+the camera and a way to stop the world. It now also exposes `RIG`, `THREE`,
+`WR`, `WW`, `AX`, `dCur` and a general `set(key,value)` into the worker.
+**`__R.set("time",0.01)` is the one that matters**: it drops the world below
+real time, which is the only way to watch anything that takes a second. Never push `test.html`. The optional
 `red` argument colours the load mesh bright red, which settles in one frame
 questions that guessing cannot.
+
+`fill.js [minutes] [pop] [seed]` — the one that answers "is it filling
+hollows or shuffling flat sand". The relief of the field cannot: relief is
+measured against the ground around a place, so what stands above always
+equals what lies below and the two move together by construction, and most
+of what the field does in the first few minutes is the sand settling rather
+than the machines — eight machines "touched" thirteen thousand cells. So
+this asks the machines instead. Every time sand enters or leaves a bucket it
+records how far the ground it came from, or went to, stood above or below
+what surrounds it at that moment. Nothing the wind does is counted.
+
+**`load` is not cubic metres.** It is the height one bucket adds to one cell,
+so a bucket reads as 0.115 and not 3.6. Multiply by `CS*CS`. This caught me
+out and it is the recurring bug class exactly.
+
+`tip.js [outdir]` — watches every machine and, the moment a bucket starts
+letting go, aims at it and shoots flat out. It also reports how many grains
+were emitted, which is the honest measure of whether a pour is a pour.
+
+`wheelfix.py`, `keygate.py`, `pourfix.py`, `fillfix.py` — the four changes of
+10 September, each one a script that proves every anchor before it writes
+anything, kept because the reasoning is in the comments they insert.
 
 `shot.js`, `blade.js`, `cab.js` — drive a headless browser at
 `http://127.0.0.1:8099/test.html`. Serve the folder with

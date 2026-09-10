@@ -4,7 +4,7 @@ const fs=require('fs');
 let s=fs.readFileSync('index.html','utf8');
 const a='requestAnimationFrame(frame);\n})();';
 if(s.split(a).length!==2){console.error('anchor');process.exit(1);}
-fs.writeFileSync('test.html', s.replace(a,'requestAnimationFrame(frame);\nwindow.__R={man:man,manualOn:manualOn,get agB(){return agB},get nB(){return nB},get BASE(){return BASE},get machLen(){return machLen},get HALF(){return HALF},run:function(v){worker&&worker.postMessage({type:\"set\",key:\"running\",value:v});}};\n})();'));
+fs.writeFileSync('test.html', s.replace(a,'requestAnimationFrame(frame);\nwindow.__R={man:man,manualOn:manualOn,get agB(){return agB},get nB(){return nB},get BASE(){return BASE},get machLen(){return machLen},get HALF(){return HALF},get RIG(){return RIG},get WR(){return WR},get WW(){return WW},get AX(){return AX},get THREE(){return THREE},get dCur(){return dCur},run:function(v){worker&&worker.postMessage({type:\"set\",key:\"running\",value:v});},set:function(k,v){worker&&worker.postMessage({type:\"set\",key:k,value:v});}};\n})();'));
 "
 [ "$1" = "red" ] && python3 - <<'PY'
 p='test.html'; s=open(p).read()

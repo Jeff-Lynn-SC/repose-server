@@ -574,7 +574,8 @@ Machine.prototype.stillWorthShoving=function(){
 Machine.prototype.jobPays=function(){
   var iu=cellAt(this.ux,this.uz);
   if(iu<0) return false;
-  return (reliefAt(this.ux,this.uz)-reliefAt(this.hx,this.hz))>0;
+  var rh=reliefAt(this.hx,this.hz);
+  return rh<0 && (reliefAt(this.ux,this.uz)-rh)>0;
 };
 Machine.prototype.newJob=function(){
   var lim=HALF-2*CS;
@@ -595,14 +596,52 @@ Machine.prototype.newJob=function(){
        ground lying below what surrounds it is exactly what a hollow is -
        so the rule was doing nothing except cutting the machine off from
        half the world. Deleted. The reckoning does the work. */
-    var r2=(1.2+rnd()*rnd()*10)*machLen, a2=rnd()*6.2832;
+    /* Far enough away to be different ground. Relief is measured against
+       what stands 38 m out, so two places nearer than that to each other
+       share their surroundings and moving sand between them barely changes
+       either one's relief. This used to start at seven metres and lean
+       hard towards the short end, so a machine took the rim of a hollow and
+       put it in the middle - which widens a hole rather than filling it,
+       and is why a quarter of everything moved came back out of a hollow.
+       It is not a rule about slopes or distances; it is the width of the
+       measure the machine is already using. */
+    var r2=(6.8+rnd()*rnd()*12)*machLen, a2=rnd()*6.2832;
     var hx=ux+Math.cos(a2)*r2, hz=uz+Math.sin(a2)*r2;
     if(hx<-lim||hx>lim||hz<-lim||hz>lim) continue;
     var ih=cellAt(hx,hz); if(ih<0) continue;
     var gap=h[iu]-h[ih];
     if(gap<=0) continue;                            /* that way is uphill: not levelling */
-    var gain=Math.min(this.cap,(reliefAt(ux,uz)-reliefAt(hx,hz))*0.5);
-    if(gain<=0) continue;               /* neither a hump taken down nor a hollow filled */
+    /* WHAT A FILLER IS ACTUALLY FOR.
+
+       This weighed a pair by how much unevenness one bucket closes, capped
+       at one bucket - which is honest, because one bucket cannot close more
+       than one bucket's worth. It is also why the machine stopped caring. A
+       hollow two metres deep and a dish a hand deep both take one bucket, so
+       both scored the same; and with the score saturated the only thing left
+       to choose on was how quickly it could get there. So it took the
+       nearest faint dip, every time, and never had a reason to drive to a
+       real hole.
+
+       Measured, eight machines, twenty minutes: they moved 1,596 m3 and put
+       16% of it into hollows while taking 15% back out of them. The net gain
+       to every hollow in the pit was seven cubic metres. It was not shaving
+       humps either - 2% came off high ground. It was shuffling flat sand.
+
+       So the far end has to be a hollow, or filling it is not the purpose
+       and it does not score at all; and how deep that hollow is multiplies
+       what the bucket closes, so a two-metre hole is worth ten of a
+       fifth-of-a-metre dish and is worth driving to.
+
+       Tried instead of depth: how much unevenness lies between the two ends.
+       It is prettier, because it makes a hump the best place to take from
+       without a rule saying so, and it measured worse than doing nothing -
+       the net into hollows went to minus eight. It rewards a big difference,
+       and the biggest differences going are across the rim of a hole. */
+    var rh=reliefAt(hx,hz);
+    if(rh>=0) continue;                 /* not a hollow: not what a filler is for */
+    var closed=Math.min(this.cap,(reliefAt(ux,uz)-rh)*0.5);
+    if(closed<=0) continue;             /* it would not close anything */
+    var gain=closed*(-rh);
     var rk=this.reckon(ux,uz,hx,hz,gain);
     var sc=rk.rate-densAt(ux,uz)*this.crowd*0.0003*CS;   /* and not shoulder to shoulder */
     if(sc>best){ best=sc; bhx=hx; bhz=hz; bux=ux; buz=uz; bpush=rk.push; }
@@ -970,18 +1009,32 @@ Machine.prototype.step=function(dt,self){
       var hold=(roll-EMPTY_AT)/(SPILL_AT-EMPTY_AT); if(hold>1) hold=1; else if(hold<0) hold=0;
       var keep=this.cap*hold;
       if(this.load>keep){
-        this.load-=giveTo(t.x,t.z,0.55*CS,this.load-keep);
+        var shed=this.load-keep;                    /* cubic metres leaving now */
+        this.load-=giveTo(t.x,t.z,0.55*CS,shed);
         this.tipping=1;
         /* A curtain of grains off the cutting edge, not a puff at the
            bucket. They come out across the whole width of the edge, fall
            fast, and are gone before they can bloom into anything cloudlike
-           - which is the difference between sand pouring and steam. */
-        if(rnd()<80*dt*dustGate){
+           - which is the difference between sand pouring and steam.
+
+           How many is how much sand is leaving, not one a step. One a step
+           is a rate set by the step rather than by the sand: it drew the
+           same thin scatter whether a full bucket was emptying or a last
+           handful was, and it meant three and a half cubic metres crossed
+           the gap between the bucket and the ground with almost nothing
+           drawn in between. That is why a bucket appeared to empty in one
+           lump. A whole bucket now sheds about a hundred and fifty, most
+           of them in the first half, because that is where most of the
+           sand goes. */
+        var rate=shed/this.cap*150*dustGate, nG=Math.floor(rate);
+        if(nG>6) nG=6;
+        if(nG<1 && rnd()<rate) nG=1;
+        for(var gI=0;gI<nG;gI++){
           var fy=t.y*machLen+here;
           var across=(rnd()-0.5)*0.52*machLen;
           puff(t.x-Math.sin(this.ang)*across, fy, t.z+Math.cos(this.ang)*across,
-               (rnd()-0.5)*0.04*CS, -(0.95+rnd()*0.45)*CS, (rnd()-0.5)*0.04*CS,
-               0.030*machLen, 0.095*machLen, 0.45+rnd()*0.35, 0.46);
+               (rnd()-0.5)*0.04*CS, -(1.10+rnd()*0.50)*CS, (rnd()-0.5)*0.04*CS,
+               0.022*machLen, 0.070*machLen, 0.34+rnd()*0.24, 0.55);
         }
       } else this.tipping=0;
       if(this.load<=0){

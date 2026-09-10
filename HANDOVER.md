@@ -234,6 +234,66 @@ reach 3.49 m, so the wheels barely show. **The body is about 1.4× too wide
 and the cab roof stands at 4.55 m against a real Loadall's 2.49 m.** That is
 the next thing, and it is a simulation change, not a drawing change.
 
+## The pour, the buttons and the filler — 10 September
+
+**The sand left the bucket in one lump.** Jeff saw it; the arithmetic was
+innocent. A bucket already lets go over about 1.8 seconds, which is right for
+a loading shovel. Two things in the drawing were not. The curtain of grains
+emitted *one grain per simulation step*, which is a rate set by the step
+rather than by the sand — the same thin scatter whether a full bucket was
+emptying or a last handful. It now sheds in proportion to how much sand is
+actually leaving, about 150 across a bucket, most in the first half. And the
+heap was scaled about the bucket's own origin, which is the back plate, so
+as it emptied the last of it *retreated away from the cutting edge it was
+supposed to be leaving by*. It slides forward and down now.
+
+**The + buttons did nothing and said nothing.** They need `&key=` on the URL,
+and without it `addMachines` returned in silence and warned into a console
+nobody on a phone can open. The buttons that talk to the server now dim
+themselves when there is no key, and say `needs &key=` if you tap one.
+
+**The filler was not filling.** Jeff: "good at lowering the highest peak but
+not at filling the deepest hole." Measured with the new `branches/fill.js`,
+eight machines, twenty minutes: it moved 1,596 m3 and put 16% into hollows
+while taking 15% back out of them. **The net gain to every hollow in the pit
+was seven cubic metres.** It was not shaving humps either — 2% came off high
+ground. It was shuffling flat sand about.
+
+Two causes, and the second is the interesting one.
+
+* The score — how much unevenness one bucket closes — **is capped at one
+  bucket**, honestly, because one bucket cannot close more. So a two-metre
+  hollow and a dish a hand deep scored the same, and with the score
+  saturated the only thing left to choose on was how quickly it could get
+  there. Depth now multiplies it.
+* **It dug within 7 to 60 m of where it tipped, and relief is measured
+  against the ground 38 m out.** So the sand it dug and the hole it filled
+  were usually the same piece of ground: it took the rim of a hollow and put
+  it in the middle, which widens a hole rather than filling it. That is why
+  it took out almost exactly what it put in. It now reaches past its own
+  measure — not a rule about distances, the width of the instrument it was
+  already using.
+
+Measured, same world, same seed, twenty minutes:
+
+| | before | depth | between | **landed** |
+|---|---|---|---|---|
+| moved | 1,596 m3 | 1,225 | 1,150 | **479** |
+| into hollows | 255 | 351 | 244 | **144** |
+| out of hollows | 248 | 294 | 252 | **93** |
+| **net into hollows** | **+7** | +57 | −8 | **+51** |
+| net / moved | 0.4% | 4.7% | −0.7% | **10.6%** |
+| mean relief where it tips | −0.044 | −0.093 | −0.060 | **−0.101** |
+
+"Between" — weighting by how much unevenness lies between the two ends — is
+prettier, because it makes a hump the best place to dig without a rule
+saying so, and it measured **worse than doing nothing**. It rewards a big
+difference, and the biggest differences in a pit are across the rim of a
+hole. Kept here because it lost.
+
+The cost is real and visible: it moves a third as much sand, because every
+job is now a proper haul. Ten times as much of it counts.
+
 ## What to build next
 
 1. **Wrecks persist.** Machines accumulate damage and break down. A wreck stays
@@ -406,6 +466,12 @@ tip. Anything still expressed in `CS` or `machLen` is suspect, and so is any
 comparison of `h[...]` or a height against a small constant.
 
 Check your own arithmetic before reporting a number. Derive units explicitly.
+
+**A picture of the field cannot answer a question about the machines.** The
+relief of the whole kilometre moves mostly because the sand settles and the
+wind works: a twenty-minute run with eight machines "touched" thirteen
+thousand cells, which is far more ground than eight machines go near. Ask
+the machines what they did instead — `branches/fill.js` does.
 
 **A comment beside a constant is not the constant.** `var BUILT=1788622677212`
 carried the comment `/* 2026-09-07 15:37 UTC */`. The value is 2026-09-05
