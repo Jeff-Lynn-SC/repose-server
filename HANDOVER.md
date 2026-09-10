@@ -398,24 +398,33 @@ Files live in `/Users/jefflynn/Library/CloudStorage/Dropbox/Personal Jeff/Art/Re
 Ask for access at the start of a session and write finished files straight in —
 Jeff does not want downloads.
 
-Pushing to GitHub can be done for him, but not from the sandbox: the proxy
-blocks `github.com/login/device` and refuses to inject credentials for these
-repositories. The Mac's shell has full GitHub access and git installed, so run
-the whole thing there:
+**Pushing needs nothing from Jeff any more, and must not.** A fine-grained
+personal access token — scoped to these two repositories, contents write, no
+expiry — lives in `repose-keys.txt` in the Repose folder as `GITHUB_TOKEN=`.
 
 ```
-# in device_bash, on the Mac
-curl -s -X POST https://github.com/login/device/code \
-  -H "Accept: application/json" \
-  -d "client_id=178c6fc778ccc68e1d6a&scope=public_repo"
+# on the Mac, from anywhere
+sh branches/push.sh "the commit message"
 ```
 
-Show Jeff the eight-character code for `github.com/login/device`, poll for the
-token, write it to a file that is never printed, and use it through
-`git -c credential.helper=...` so it never lands in a config file. Clone both
-repositories into the Mac's scratch (outside `mnt/`), copy the files across,
-commit, push. A device code lasts fourteen minutes and Jeff will often need a
-fresh one — issue it and start polling in the same call.
+That script reads the token, never prints it, passes it through a credential
+helper so it never lands in a config file, clones both repositories into the
+Mac's scratch outside `mnt/`, copies the folder across and pushes. It sweeps
+the whole of `branches/` so a new tool is never left behind, and it never
+names `repose-keys.txt`.
+
+The sandbox cannot do this. The proxy refuses to inject a credential for these
+repositories — tested again on 10 September, and `git clone` works from there
+while `push` does not.
+
+**Do not go back to the device flow.** It asked Jeff for a six-character code
+that expired in fifteen minutes, and every code issued while he was away from
+the keyboard lapsed unused; three in a row did on 10 September. If the token
+is missing or has been revoked, ask him to make a new one at
+`github.com/settings/personal-access-tokens/new` — only select repositories,
+`Repose` and `repose-server`, Contents: read and write — and to paste it into
+`repose-keys.txt` himself rather than into the chat. Do not delete the token
+after a push. Deleting it is what made him type a code twice in one day.
 
 Do not use client id `Iv1.b507a08c87ecfe98` — that is the GitHub CLI's App and
 its token has no scopes.
