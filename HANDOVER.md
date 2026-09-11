@@ -407,6 +407,10 @@ expiry — lives in `repose-keys.txt` in the Repose folder as `GITHUB_TOKEN=`.
 sh branches/push.sh "the commit message"
 ```
 
+It stamps `BUILT` in `index.html` with the moment the page goes out, and only
+when the page has really changed, so a run that changes nothing does not
+manufacture a commit. Do not stamp it by hand.
+
 That script reads the token, never prints it, passes it through a credential
 helper so it never lands in a config file, clones both repositories into the
 Mac's scratch outside `mnt/`, copies the folder across and pushes. It sweeps
@@ -439,9 +443,17 @@ be blanked.
 Render does not reliably auto-deploy. Always Manual Deploy → Deploy latest
 commit and confirm before debugging anything else.
 
-Check the two build lines agree before believing anything you are told about
-what the world looks like. The readout shows `page` and `world` dates; if they
-disagree, that is the only thing to fix.
+**The two build lines are facts now, and they were not.** `page` was a
+timestamp stamped into `index.html` by hand, so two different pages went out
+under one stamp on 10 September. `world` was a *sentence someone typed* in
+`server.js` — `const BUILD = "2026-09-07 - the wheels turn and steer ..."` —
+which nothing updated, so it read the same through every deploy for a week and
+described work from the 5th while claiming the 7th. The old rule here said to
+check the two agreed; they were never the same kind of thing and could not
+agree, and following that rule cost an afternoon of telling Jeff he had not
+deployed when he had. `page` is now stamped by `branches/push.sh` at the
+moment the file goes out, and `world` is Render's own `RENDER_GIT_COMMIT` plus
+how long the server has been up. Both can be believed.
 
 Do not trust a read taken just after a push or a deploy. Both
 `raw.githubusercontent.com` and the live server serve stale copies for minutes.

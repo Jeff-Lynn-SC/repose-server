@@ -29,8 +29,19 @@ const GH_EVERY = parseInt(process.env.GH_EVERY || "300000", 10);   /* five minut
 /* Set RESET_KEY to be able to wipe the world from a URL. Leave it unset and
    the endpoint does not exist. */
 const RESET_KEY = process.env.RESET_KEY || "";
-/* so you can tell at a glance which simulation is actually running */
-const BUILD = "2026-09-07 · the wheels turn and steer · sand heaps and pours as grains";
+/* So you can tell at a glance which simulation is actually running — and it
+   has to be a fact rather than a sentence. This was a hand-typed string that
+   nothing updated, so it read the same through every deploy for a week, said
+   the 7th while describing work from the 5th, and cost an afternoon of
+   believing a deploy had not happened when it had. Render puts the deployed
+   commit in the environment; that cannot lie. */
+const COMMIT = (process.env.RENDER_GIT_COMMIT || "").slice(0,7) || "local";
+const STARTED = Date.now();
+function buildLine(){
+  const up = Math.round((Date.now()-STARTED)/1000);
+  const age = up<3600 ? Math.round(up/60)+"m" : (up/3600).toFixed(1)+"h";
+  return COMMIT+" \u00b7 up "+age;
+}
 let ghSha=null, ghDirty=false, ghLast=0;
 const TICK_MS   = 100;              /* how often the world is versioned */
 const SIM_HZ    = 40;               /* the simulation's own fixed step */
@@ -279,7 +290,7 @@ const server = http.createServer((req,res)=>{
     const added=admit(id);
     res.setHeader("Content-Type","application/json");
     res.end(JSON.stringify({visitors,added,machines:ctx.machines.length,
-      world:WORLD,since:born,build:BUILD,speed}));
+      world:WORLD,since:born,build:buildLine(),speed}));
     return;
   }
   if(u.pathname==="/add"){
