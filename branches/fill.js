@@ -62,6 +62,19 @@ function bin(t, r, v0) {
   t.vol += v; t.wsum += r * v;
   if (r < -TOL) t.hollow += v; else if (r > TOL) t.hump += v; else t.flat += v;
 }
+/* And the thing Jeff actually watches: the deepest hole and the highest
+   peak, against the mean. Those are single cells out of thirty-two thousand,
+   so the mean of the lowest and highest half-percent is reported beside them
+   - same question, robust enough to move. */
+function extremes() {
+  const a = Array.from(h); a.sort((x, y) => x - y);
+  const mean = a.reduce((x, y) => x + y, 0) / a.length;
+  const k = Math.max(1, Math.round(a.length * 0.005));
+  let lo = 0, hi = 0;
+  for (let i = 0; i < k; i++) { lo += a[i]; hi += a[a.length - 1 - i]; }
+  return { deepest: a[0] - mean, peak: a[a.length - 1] - mean,
+           lowest: lo / k - mean, highest: hi / k - mean };
+}
 const r0 = (v) => +v.toFixed(0), r3 = (v) => +v.toFixed(3);
 function line(at) {
   console.log(JSON.stringify({
@@ -71,10 +84,14 @@ function line(at) {
                meanRelief: got.vol ? r3(got.wsum / got.vol) : 0 },
     tookFrom:{ m3: r0(took.vol), offHumps: r0(took.hump), offFlat: r0(took.flat), outOfHollows: r0(took.hollow),
                shareOffHumps: took.vol ? r3(took.hump / took.vol) : 0,
-               meanRelief: took.vol ? r3(took.wsum / took.vol) : 0 }
+               meanRelief: took.vol ? r3(took.wsum / took.vol) : 0 },
+    field: (() => { const e = extremes();
+      return { deepest: r3(e.deepest), peak: r3(e.peak),
+               lowest: r3(e.lowest), highest: r3(e.highest) }; })()
   }));
 }
 
+line(0);
 const every = Math.round(Math.max(1, Math.min(5, MINS / 4)) * 60 / DT);
 for (let s = 1; s <= STEPS; s++) {
   sim.substep(DT); sim.evN = 0; sim.dustN = 0;

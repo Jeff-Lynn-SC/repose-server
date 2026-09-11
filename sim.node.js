@@ -475,15 +475,66 @@ Machine.prototype.relocate=function(){
    quicker, so it does not only choose *where* to work but *how* - and,
    because a short downhill pair is worth much more to a pusher than to a
    carrier, it starts choosing different pairs. */
-function reliefAt(x,z){
-  var r=38, s=0, n=0;                  /* metres, about as far as a bucket is worth carrying */
+/* HOW BIG IS A HOLLOW.
+
+   This averaged the ground at a fixed 38 metres, and that number was the last
+   designer's decision left in the reckoning. It set the scale at which ground
+   counts as low, so every machine's idea of a hollow was something somebody
+   typed rather than anything about the sand - and it meant the pit could grow
+   shapes larger than its machines were able to see.
+
+   A hollow is ground lying below what surrounds it. Where "around" ends is
+   not a distance to be chosen: it is where the ground stops climbing as you
+   walk outward. So walk out, ring by ring, while the drop keeps deepening,
+   and stop at the first ring where it does not. That distance is the size of
+   the landform itself, and it grows as the pit's shapes grow.
+
+   Two things in here are how you look rather than what you decide: eight
+   bearings, and rings that grow by three fifths each time. The smallest ring
+   is the machine's own length, because nothing shorter than a machine is a
+   piece of ground to it. Everything that matters - how deep, and how wide -
+   comes from the sand.
+
+   `_rel.r` is how far out the answer was found. It is the only honest
+   statement of how far away *different* ground is, and the filler uses it so
+   that it cannot fill a hole with that hole's own rim. */
+var _rel={d:0,r:0};
+var _relC=[], _relS=[];
+for(var _ra=0;_ra<8;_ra++){ _relC.push(Math.cos(_ra*0.7853982)); _relS.push(Math.sin(_ra*0.7853982)); }
+function _ring(x,z,r){
+  var sum=0, n=0;
   for(var a=0;a<8;a++){
-    var th=a*0.7853982, px=x+Math.cos(th)*r, pz=z+Math.sin(th)*r;
+    var px=x+_relC[a]*r, pz=z+_relS[a]*r;
     if(px<-HALF||px>HALF||pz<-HALF||pz>HALF) continue;
-    s+=hAt(px,pz); n++;
+    sum+=hAt(px,pz); n++;
   }
-  return n?hAt(x,z)-s/n:0;
+  return n?sum/n:NaN;
 }
+function reliefScan(x,z){
+  /* Walk out while the ground keeps climbing away (or, on a hump, keeps
+     falling away) and stop the moment it does not. That stall is the rim,
+     and the rim is the edge of this piece of ground.
+
+     Written first as "while the drop from the middle keeps deepening", which
+     is not the same sentence and is wrong: a ring mean taken further and
+     further out keeps rising all the way across whatever the hollow sits in,
+     so every hole reported itself as the whole basin around it, and the
+     machine went off to the broadest shallowest ground it could find.
+     Measured: net into hollows +20 against +51 for the constant it replaced.
+     Comparing each ring with the one before it finds the hole's own rim. */
+  var here=hAt(x,z), prev=_ring(x,z,machLen), br=machLen, r, m;
+  if(prev!==prev){ _rel.d=0; _rel.r=machLen; return _rel; }
+  var up=prev>here;                    /* the ground rises away: this is a hollow */
+  for(r=machLen*1.6;r<HALF;r*=1.6){
+    m=_ring(x,z,r);
+    if(m!==m) break;
+    if(up?(m<=prev):(m>=prev)) break;  /* stopped climbing, or stopped falling */
+    prev=m; br=r;
+  }
+  _rel.d=here-prev; _rel.r=br;
+  return _rel;
+}
+function reliefAt(x,z){ return reliefScan(x,z).d; }
 /* How long a dig and a tip take this machine, worked out rather than set.
    A pass sweeps the width of the bucket by the depth of its cut by the
    length of the pass, so a bucket takes as many passes as that volume needs,
@@ -581,70 +632,66 @@ Machine.prototype.newJob=function(){
   var lim=HALF-2*CS;
   var best=-1,bhx=null,bhz=null,bux=null,buz=null,bpush=false;
   for(var k=0;k<28;k++){
+    /* THE HOLLOW FIRST.
+
+       This looked for sand first and then for somewhere lower to put it,
+       which is a machine looking for a slope rather than for a hole. The
+       hollow is the purpose, so the hollow is what it looks for; and only
+       the hollow can say how far away different ground is.
+
+       There was a rule here once that a filler would not take sand from
+       ground already below the datum. It was a fence rather than a purpose
+       and it is long deleted: ground lying below what surrounds it is
+       exactly what a hollow is, so relief already refuses what the rule
+       refused. */
     var R=(rnd()<0.03)?frontier():(3+this.crowd*12)*machLen*(0.5+rnd()*rnd()*6);
-    var ux=this.x+(rnd()*2-1)*R, uz=this.z+(rnd()*2-1)*R;
-    if(ux<-lim||ux>lim||uz<-lim||uz>lim) continue;
-    var iu=cellAt(ux,uz); if(iu<0) continue;
-    /* There was a rule here that a filler would not take sand from ground
-       already below the datum. It was Jeff's, and a fence rather than a
-       purpose, and it turned out to be what stopped a machine ever working
-       one place for long: the world's mean ground IS the datum, so most
-       ground a filler was allowed to touch stood only centimetres above it,
-       and a single load takes 2.7 cm out of a cell. Measured, a filler
-       abandoned its cut fourteen times in six minutes and nine of those
-       were the rule firing. Relief already refuses what the rule refused -
-       ground lying below what surrounds it is exactly what a hollow is -
-       so the rule was doing nothing except cutting the machine off from
-       half the world. Deleted. The reckoning does the work. */
-    /* Far enough away to be different ground. Relief is measured against
-       what stands 38 m out, so two places nearer than that to each other
-       share their surroundings and moving sand between them barely changes
-       either one's relief. This used to start at seven metres and lean
-       hard towards the short end, so a machine took the rim of a hollow and
-       put it in the middle - which widens a hole rather than filling it,
-       and is why a quarter of everything moved came back out of a hollow.
-       It is not a rule about slopes or distances; it is the width of the
-       measure the machine is already using. */
-    var r2=(6.8+rnd()*rnd()*12)*machLen, a2=rnd()*6.2832;
-    var hx=ux+Math.cos(a2)*r2, hz=uz+Math.sin(a2)*r2;
-    if(hx<-lim||hx>lim||hz<-lim||hz>lim) continue;
-    var ih=cellAt(hx,hz); if(ih<0) continue;
-    var gap=h[iu]-h[ih];
-    if(gap<=0) continue;                            /* that way is uphill: not levelling */
+    var fillx=this.x+(rnd()*2-1)*R, fillz=this.z+(rnd()*2-1)*R;
+    if(fillx<-lim||fillx>lim||fillz<-lim||fillz>lim) continue;
+    var iF=cellAt(fillx,fillz); if(iF<0) continue;
+    var rs=reliefScan(fillx,fillz), rFill=rs.d, span=rs.r;
+    if(rFill>=0) continue;              /* not a hollow: not what a filler is for */
+
+    /* and the sand comes from outside it, at a distance the hollow itself
+       gave. Nearer than that and the ground being dug is part of the same
+       hollow, so taking its rim and putting it in the middle widens a hole
+       rather than filling one - which is why a quarter of everything this
+       machine moved used to come back out of a hollow. */
+    var r2=span*(1.0+rnd()*rnd()*1.6), a2=rnd()*6.2832;
+    var digx=fillx+Math.cos(a2)*r2, digz=fillz+Math.sin(a2)*r2;
+    if(digx<-lim||digx>lim||digz<-lim||digz>lim) continue;
+    var iD=cellAt(digx,digz); if(iD<0) continue;
+    if(h[iD]-h[iF]<=0) continue;        /* that way is uphill: not levelling */
+
     /* WHAT A FILLER IS ACTUALLY FOR.
 
-       This weighed a pair by how much unevenness one bucket closes, capped
-       at one bucket - which is honest, because one bucket cannot close more
-       than one bucket's worth. It is also why the machine stopped caring. A
-       hollow two metres deep and a dish a hand deep both take one bucket, so
-       both scored the same; and with the score saturated the only thing left
-       to choose on was how quickly it could get there. So it took the
+       A pair used to be weighed by how much unevenness one bucket closes,
+       capped at one bucket - honest, because one bucket cannot close more
+       than one bucket's worth, and exactly why the machine stopped caring.
+       A hollow two metres deep and a dish a hand deep both take one bucket,
+       so both scored the same; and with the score saturated the only thing
+       left to choose on was how quickly it could get there. So it took the
        nearest faint dip, every time, and never had a reason to drive to a
        real hole.
 
-       Measured, eight machines, twenty minutes: they moved 1,596 m3 and put
-       16% of it into hollows while taking 15% back out of them. The net gain
-       to every hollow in the pit was seven cubic metres. It was not shaving
-       humps either - 2% came off high ground. It was shuffling flat sand.
+       Measured, eight machines, twenty minutes: 1,596 m3 moved, 16% put into
+       hollows and 15% taken back out of them. The net gain to every hollow
+       in the pit was seven cubic metres. It was not shaving humps either -
+       2% came off high ground. It was shuffling flat sand about.
 
-       So the far end has to be a hollow, or filling it is not the purpose
-       and it does not score at all; and how deep that hollow is multiplies
-       what the bucket closes, so a two-metre hole is worth ten of a
-       fifth-of-a-metre dish and is worth driving to.
-
-       Tried instead of depth: how much unevenness lies between the two ends.
-       It is prettier, because it makes a hump the best place to take from
-       without a rule saying so, and it measured worse than doing nothing -
-       the net into hollows went to minus eight. It rewards a big difference,
-       and the biggest differences going are across the rim of a hole. */
-    var rh=reliefAt(hx,hz);
-    if(rh>=0) continue;                 /* not a hollow: not what a filler is for */
-    var closed=Math.min(this.cap,(reliefAt(ux,uz)-rh)*0.5);
+       So how deep the hollow is multiplies what the bucket closes, and a
+       two-metre hole is worth ten of a fifth-of-a-metre dish, which is worth
+       driving to. Tried instead: weighting by how much unevenness lies
+       between the two ends. Prettier, because it makes a hump the best place
+       to dig without a rule saying so, and it measured worse than doing
+       nothing - net into hollows went to minus eight. It rewards a big
+       difference, and the biggest differences in a pit are across the rim of
+       a hole. */
+    var closed=Math.min(this.cap,(reliefAt(digx,digz)-rFill)*0.5);
     if(closed<=0) continue;             /* it would not close anything */
-    var gain=closed*(-rh);
-    var rk=this.reckon(ux,uz,hx,hz,gain);
-    var sc=rk.rate-densAt(ux,uz)*this.crowd*0.0003*CS;   /* and not shoulder to shoulder */
-    if(sc>best){ best=sc; bhx=hx; bhz=hz; bux=ux; buz=uz; bpush=rk.push; }
+    var gain=closed*(-rFill);
+    var rk=this.reckon(digx,digz,fillx,fillz,gain);
+    var sc=rk.rate-densAt(digx,digz)*this.crowd*0.0003*CS;   /* and not shoulder to shoulder */
+    if(sc>best){ best=sc; bhx=fillx; bhz=fillz; bux=digx; buz=digz; bpush=rk.push; }
   }
   if(bhx===null){
     /* genuinely nothing to do: it stands where it is, rather than miming */

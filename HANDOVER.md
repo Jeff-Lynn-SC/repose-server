@@ -294,6 +294,76 @@ hole. Kept here because it lost.
 The cost is real and visible: it moves a third as much sand, because every
 job is now a proper haul. Ten times as much of it counts.
 
+## The 38 metres, gone — 11 September
+
+Jeff: *"why is there a 40 m patch? Everything should be as natural as
+possible. Only the goals and the natural laws are fixed."* He was right, and
+it was already written down as his objection in `DECISIONS.md`, and I had
+walked past it that morning and added a second constant to prop up the first.
+
+`reliefAt` averaged the ground at a fixed 38 metres — the scale at which
+ground counted as low. So every machine's idea of a hollow was a number
+somebody typed, and the pit could grow shapes larger than its machines could
+see. It now walks outward ring by ring and **stops where the ground stops
+climbing**. That stall is the rim, and the rim is the size of that piece of
+ground. It grows as the pit's shapes grow.
+
+It also answered a question I had been faking: **how far away is different
+ground?** The hollow's own rim is that distance, so a filler digs outside the
+hole it is filling because the hole told it where its edge was.
+
+What is left is how you look rather than what you decide: eight bearings,
+rings growing by three fifths, and a smallest ring of one machine length,
+because nothing shorter than a machine is a piece of ground to it.
+
+**Got it wrong once, instructively.** The comment said "stop where the ground
+stops climbing" and the code said "stop where the drop from the middle stops
+deepening". Those are different sentences. A ring average taken further and
+further out keeps rising all the way across whatever a hollow sits in, so
+every hole reported itself as the whole basin around it and the machines went
+off to the broadest, shallowest ground in the pit: net into hollows +20
+against +51 for the constant it replaced. Comparing each ring with the one
+before it finds the hole's own rim. **Write the sentence, then check the code
+is that sentence.**
+
+Measured, eight machines, twenty minutes, same world:
+
+| | before this week | fixed 38 m | **landed** |
+|---|---|---|---|
+| moved | 1,596 m3 | 479 | 1,377 |
+| net into hollows | +7 | +51 | +17 |
+| taken off high ground | 39 (2%) | 0 | **166 (12%)** |
+| mean relief where it digs | −0.034 | −0.063 | **+0.002** |
+
+It is the only version that digs off high ground, and the only one that takes
+its sand from ground standing *above* its surroundings rather than out of
+other hollows. It scores worse on "net into hollows" and that column is not
+to be trusted here: `branches/fill.js` still defines a hollow at 38 m, so it
+is measuring this machine with the constant that was just deleted. **The
+instrument now needs to ask the machines what they thought they were
+filling.** That is the first job for whoever picks this up.
+
+## Nobody goes near the peak or the deepest hole
+
+The finding that matters most from that day, and it is not about the filler.
+
+Over twenty minutes, eight machines, the pit's deepest cell and highest cell
+did not move **by one millimetre** — identical to three decimal places, in
+every version of the filler including the one from before any of this week's
+work. The same is true of the robust version, the mean of the lowest and
+highest half-percent.
+
+A machine searches for work within a radius of wherever it happens to be
+standing — `(3+crowd*12)*machLen*(0.5+rnd²*6)` — and `frontier()` fires three
+times in a hundred. So the pit's most extreme ground is never chosen unless a
+machine is born beside it. Jeff had been watching `peak` and `deepest` sit
+still for days and reasonably concluded the filler was not working; the filler
+was working, on ground somewhere else entirely.
+
+This is now the largest designer's decision left in the piece. A filler whose
+purpose is that hollows get filled should be drawn to the deepest hollow it
+can find, not the deepest one within a random distance of its own feet.
+
 ## What to build next
 
 1. **Wrecks persist.** Machines accumulate damage and break down. A wreck stays

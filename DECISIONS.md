@@ -62,10 +62,19 @@ something obviously good turns up.
 **How far it will carry:** `(1.2+rnd²*10)*machLen`.
 Both sampled from shapes I chose, not judged.
 
-**A hollow is defined at 38 metres.** That is the radius `reliefAt` averages
-over — the scale at which ground counts as low. It should almost certainly *be*
-the distance the machine is willing to carry, which would collapse two constants
-into one and make the machine's idea of "a hollow" follow from its own reach.
+**~~A hollow is defined at 38 metres.~~ Gone, 11 September.** `reliefAt` now
+walks outward ring by ring and stops where the ground stops climbing; that
+stall is the rim, and the rim is the size of that piece of ground. Nothing
+chooses a scale, and the machines' idea of a hollow grows as the pit's shapes
+grow. The earlier suggestion here — make it the distance a machine is willing
+to carry — would only have collapsed two chosen numbers into one chosen
+number. The hollow's own rim also turned out to be the honest answer to *how
+far away is different ground*, which the filler needs so that it cannot fill a
+hole with that hole's own rim, and which was a typed constant for one day.
+
+What is left in there is how you look rather than what you decide: eight
+bearings, rings growing by three fifths, and a smallest ring of one machine
+length because nothing shorter than a machine is a piece of ground to it.
 
 **Close half the gap.** `gain = min(cap, reliefDifference*0.5)`. Why half.
 
@@ -308,9 +317,16 @@ and it is the largest untrue number in the file.
 3. **How hard to think is itself a decision.** A filler considers 28
    candidates, always. It could look harder when the best thing it has found is
    poor and stop early when something obviously good turns up.
-4. **One carry distance, and let it define what a hollow is.** The 38 m over
-   which relief is measured should be the distance the machine is willing to
-   carry, which would collapse two constants into one.
+4. **Where a machine looks for work is still a shape I chose.**
+   `(3+crowd*12)*machLen*(0.5+rnd²*6)`, centred on wherever the machine is
+   standing. Measured 11 September: over twenty minutes, eight machines left
+   the pit's deepest hole and highest peak untouched to the millimetre — in
+   every version of the filler, including the one before any of this week's
+   changes. The extremes are simply not near anybody, and nothing draws a
+   machine to them. A filler whose purpose is that hollows get filled should
+   be drawn to the deepest hollow it can find, not the deepest within a
+   random distance of its own feet. **This is now the largest designer's
+   decision left in the piece.**
 5. **Damage should show somewhere.** It is carried, it kills machines, and it
    is invisible in the hydraulics, the drive speed and the grip - all three of
    which are identical in every machine that has ever lived.
