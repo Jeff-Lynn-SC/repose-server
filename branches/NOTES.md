@@ -65,6 +65,32 @@ conservation and that nothing goes non-finite.
 `sync.js` — the only thing allowed to write one copy of the simulation from the
 other. Proves every anchor before writing anything and checks afterwards.
 
+## The instrument that went blind — 12 September
+
+**`probe.js` still has this bug. Fix it before believing any long run.**
+
+`fill.js` and `probe.js` both took `sim.machines.slice()` at the start and
+ledgered those objects. Machines die and are replaced, so the ledger counts
+less and less, and in the end nothing. It looks exactly like the pit downing
+tools: forty machines, and "sand moved" froze at fifty minutes and never rose
+again. Nothing had stopped — the instrument had. `fill.js` now takes the roll
+every simulated second and a machine born into the world joins it. With that
+fixed, the same world runs to 9,475 m3 in an hour without a pause.
+
+## Tried and lost: no search radius at all — 12 September
+
+Where a filler looks for work is a shape somebody chose:
+`(3+crowd*12)*machLen*(0.5+rnd^2*6)` from its own feet. Replaced with a
+distance drawn with no preferred scale — as likely to be one machine length as
+half the world — on the argument that `reckon` already holds the opinion about
+how far is worth going, and the search should not hold a second, cruder one.
+
+Measured, twenty minutes, eight machines: **501 m3 moved against 1,377, and
+net into hollows +8 against +17.** The machines spent the run driving. The
+prior was doing real work: a search has to be efficient, which is a different
+thing from a judgement about what is worth doing. Reverted. It stays on the
+DECISIONS list, but not as a thing to simply delete.
+
 `mktest.sh [red]` — builds `test.html` from `index.html` with a hook exposing
 the camera and a way to stop the world. It now also exposes `RIG`, `THREE`,
 `WR`, `WW`, `AX`, `dCur` and a general `set(key,value)` into the worker.

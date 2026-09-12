@@ -343,26 +343,39 @@ is measuring this machine with the constant that was just deleted. **The
 instrument now needs to ask the machines what they thought they were
 filling.** That is the first job for whoever picks this up.
 
-## Nobody goes near the peak or the deepest hole
+## The peak and the deepest hole — what they actually do
 
-The finding that matters most from that day, and it is not about the filler.
+**A correction to what was written here on 11 September.** That section said
+nobody ever goes near either of them. It was true of twenty-minute runs with
+eight machines and it is false, and it was in here for a day.
 
-Over twenty minutes, eight machines, the pit's deepest cell and highest cell
-did not move **by one millimetre** — identical to three decimal places, in
-every version of the filler including the one from before any of this week's
-work. The same is true of the robust version, the mean of the lowest and
-highest half-percent.
+An hour, forty machines, three in ten raising, with `branches/fill.js`:
 
-A machine searches for work within a radius of wherever it happens to be
-standing — `(3+crowd*12)*machLen*(0.5+rnd²*6)` — and `frontier()` fires three
-times in a hundred. So the pit's most extreme ground is never chosen unless a
-machine is born beside it. Jeff had been watching `peak` and `deepest` sit
-still for days and reasonably concluded the filler was not working; the filler
-was working, on ground somewhere else entirely.
+| | moved | deepest | peak |
+|---|---|---|---|
+| 0 min | — | −1.84 | +1.81 |
+| 25 | 3,435 m3 | −2.46 | +3.33 |
+| 30 | 4,041 | **−3.53** | **+3.60** |
+| 45 | 5,985 | −2.57 | +3.59 |
+| 60 | 9,475 | −2.19 | +2.14 |
 
-This is now the largest designer's decision left in the piece. A filler whose
-purpose is that hollows get filled should be drawn to the deepest hollow it
-can find, not the deepest one within a random distance of its own feet.
+Both ends swing about 1.7 m and come back. **The deepest hole is a working
+face**: it opens while a machine is quarrying it and closes when the machine
+moves on. That is exactly what Jeff watched on the live page — −1.9 m going to
+−2.7 m — and it is a machine at work, not a filler wrecking the pit. The
+raisers put up a 3.6 m hill over half an hour and then lost most of it.
+
+Why it looked frozen to him: one machine in the world, and the free server
+sleeps whenever nobody has the page open. The world does all of this; it needs
+machines in it and somebody watching.
+
+**Twenty minutes is not long enough to see anything**, and eight machines on a
+square kilometre is not enough to move anything. 1,400 m3 spread over a
+square kilometre is a millimetre and a half. Run an hour, run forty machines.
+
+Where a filler looks for work is still a shape somebody chose, and it stays on
+the `DECISIONS.md` list — but deleting it outright was tried on 12 September
+and measured worse. `branches/NOTES.md` has the numbers.
 
 ## What to build next
 
