@@ -60,7 +60,7 @@ function walk(d,period,seed){
   var x=d/period+seed*17.3, i=Math.floor(x), f=x-i, u=f*f*(3-2*f);
   return h1(i+seed*7.1)*(1-u)+h1(i+1+seed*7.1)*u;
 }
-var windDir=0, windStr=0, eraTick=0;
+var windDir=0, windStr=0, windGust=1, eraTick=0;
 var clockShift=0;
 function updateEra(){
   var d=worldDays();
@@ -69,6 +69,13 @@ function updateEra(){
   rateMul  = 0.55+1.05*walk(d,0.9,3);
   windDir  = walk(d,2.3,4)*6.2832;
   windStr  = Math.pow(walk(d,0.6,5),1.7);
+  /* Deep time gives the prevailing wind - what the season is doing. Real wind
+     is not one number for a week: it gusts and drops over minutes, and it
+     swings a few degrees with each gust. Two faster walks on the same clock,
+     so nothing is stored and two people opening this at the same moment are
+     in the same weather. */
+  windGust = 0.45+1.35*walk(d,0.0042,11);        /* about six minutes */
+  windDir += (walk(d,0.0090,12)-0.5)*0.55;       /* and it wanders as it goes */
 }
 
 /* ---- the pit remembers where it has been stripped ----
@@ -86,24 +93,81 @@ function updateRock(){
 }
 
 /* ---- wind ---- */
+/* WIND.
+
+   What this was: one strength for the whole pit, moving sand only off cells
+   that already stood above their neighbours, and scrubbing wear only on those
+   same cells. So a track on flat ground was never touched by wind at all, and
+   the wind had no geography - the lee of a hill blew as hard as its crest.
+
+   What it is now, which is how sand actually moves:
+
+   * There is a threshold. Below a certain wind nothing lifts at all; above
+     it the amount carried climbs steeply - Bagnold's cube of the excess. So
+     a quiet week leaves the ground alone entirely and a gale rearranges it,
+     rather than everything creeping all the time.
+
+   * Packed sand resists. Ground that has been driven over needs a harder
+     wind to lift it, so a track that has been used survives weather that
+     wipes the loose sand beside it away. That is why old desert tracks last
+     for decades and sometimes end up standing proud of the ground around
+     them: history, written by the wind refusing to take it.
+
+   * The wind has a shape, and the shape is the ground. It runs quicker up a
+     windward face and over a crest, and it slackens in the lee and in
+     hollows - which is exactly where the sand it is carrying gets dropped.
+     No wind map: the local wind is the prevailing wind and the slope it is
+     crossing, so this costs nothing to store and nothing on the wire, and
+     dunes walk downwind because of it rather than because anyone said so.
+
+   `WIND_T` is the threshold and `WIND_PACK` how much harder packed sand is to
+   lift. Both are material, like the angle of repose. `windGust` is weather. */
+var WIND_T=0.12, WIND_PACK=2.2, WIND_REF=0.681;   /* (1-WIND_T)^3: a full gale on bare sand is 1 */
 function windStep(dt){
-  if(windStr<0.06) return;
+  var str=windStr*windGust;
+  if(str<WIND_T*0.5) return;                 /* nothing is moving anywhere */
   var wx=Math.cos(windDir), wz=Math.sin(windDir);
   var ax=Math.abs(wx), az=Math.abs(wz), sx=ax/(ax+az+1e-6), sz=1-sx;
   var jxo=wx>0?1:-1, jzo=wz>0?N:-N;
   /* Wind works over hours, not seconds. At the old rate it took a fraction of
      any raised ground away forty times a second, so a fresh heap was flat
      before the machine that made it had turned round. */
-  var k=0.010*windStr*dt;
+  var k=0.010*dt, cs=1/CS;
   for(var z=1;z<N-1;z++){
     for(var x=1;x<N-1;x++){
       var i=z*N+x;
-      var loc=(h[i-1]+h[i+1]+h[i-N]+h[i+N])*0.25;
-      var ex=h[i]-loc;
-      if(ex<=0.02*CS) continue;
-      var t=ex*k; if(t>ex*0.2) t=ex*0.2;
-      h[i]-=t; h[i+jxo]+=t*sx; h[i+jzo]+=t*sz;
-      if(wear[i]>0) wear[i]*=(1-0.55*windStr*dt);
+      /* how exposed this place is: the ground it stands above, upwind */
+      var upw=h[i-jxo]*sx+h[i-jzo]*sz;
+      var expo=(h[i]-upw)*cs;                /* a slope: + into the wind, - in the lee */
+      var loc=str*(1+2.2*expo);
+      if(loc>str*2.5) loc=str*2.5; else if(loc<0) loc=0;
+      var thr=WIND_T*(1+WIND_PACK*(wear[i]||0));
+      if(loc<=thr) continue;                 /* it cannot lift this sand */
+      var q=loc-thr, flux=q*q*q/WIND_REF;    /* Bagnold: the cube of the excess */
+      /* it takes a share of what stands proud of its own neighbours, so the
+         wind moves a surface rather than digging a hole in flat ground. The
+         share is what the old wind used, so a gale still does what it always
+         did; everything below the threshold now does nothing at all. */
+      var nb=(h[i-1]+h[i+1]+h[i-N]+h[i+N])*0.25, ex=h[i]-nb;
+      if(ex>0){
+        var rate=k*flux; if(rate>0.2) rate=0.2;
+        var t=ex*rate;
+        h[i]-=t; h[i+jxo]+=t*sx; h[i+jzo]+=t*sz;
+        /* what lands is loose, and loose sand on top of packed ground is what
+           the surface now is - so a lee that is filling in stops being a road */
+        var soft=t/(0.004*CS);
+        if(soft>0){
+          var ja=i+jxo, jb=i+jzo;
+          if(wear[ja]>0) wear[ja]*=(1-(soft*sx>1?1:soft*sx));
+          if(wear[jb]>0) wear[jb]*=(1-(soft*sz>1?1:soft*sz));
+        }
+      }
+      /* and the same wind that lifted the sand scours what packed it - slowly,
+         and only when it is above the threshold for packed ground at all */
+      if(wear[i]>0){
+        var sc=q*q*0.02*dt; if(sc>0.2) sc=0.2;
+        wear[i]*=(1-sc);
+      }
     }
   }
 }
@@ -1677,9 +1741,19 @@ function substep(dt){
   }
   avDN=0;
   if((conflictTick++%40)===0) findConflicts();
-  /* wear fades here rather than in the renderer: it is state, not shading */
-  var decay=1-0.035*dt;
-  for(var w=0;w<wear.length;w++) if(wear[w]>0.002) wear[w]*=decay;
+  /* COMPRESSION LASTS UNTIL SOMETHING UNDOES IT.
+
+     This used to fade every cell in the world by 3.5% a second, on a timer,
+     which is a half-life of twenty seconds: no ground could stay packed long
+     enough to be anything, and a track was gone before the machine that made
+     it had finished the job. It was the reason `tracked` never rose above a
+     few per cent however many machines were driving.
+
+     Packing is a state of the sand, so only the sand undoes it. Three things
+     do, and all three were already here: the wind scours it off exposed
+     ground once it is blowing hard enough to lift packed sand at all; a
+     bucket tipped onto it is loose sand and resets it; and digging takes it
+     away with the sand it was. Nothing else should. */
 }
 
 /* --------------------- how a machine comes to be --------------------- */
@@ -1808,7 +1882,8 @@ function snapshot(){
   var rk=grab(rock.length); rk.set(rock);
   var msg={type:"snap", tick:tick++, n:n, dustN:dustN, evN:evN,
     h:hh, wear:ww, agents:ag, dust:du, events:ev, rock:rk,
-    era:{day:worldDays(),mix:mixRaise,repose:reposeDeg,rate:rateMul,windDir:windDir,windStr:windStr},
+    era:{day:worldDays(),mix:mixRaise,repose:reposeDeg,rate:rateMul,windDir:windDir,
+         windStr:windStr,windGust:windGust},
     N:N, CS:CS, HALF:HALF, BASE:BASE, machLen:machLen, fieldMode:fieldMode,
     stats:{mean:meanH,max:maxH,min:minH,gini:gini,stripped:stripped,buried:buried,
            tracked:tracked,collapses:collapses,nA:nA,nB:nB,mass:totalMass,
@@ -1899,6 +1974,7 @@ module.exports={
   get mixRaise(){return mixRaise}, set mixRaise(v){mixRaise=v},
   get reposeDeg(){return reposeDeg},
   get windStr(){return windStr}, get windDir(){return windDir},
+  get windGust(){return windGust}, windStep:windStep,
   get figures(){ return {mean:meanH,max:maxH,min:minH,gini:gini,stripped:stripped,buried:buried,
     tracked:tracked,collapses:collapses,nA:nA,nB:nB,mass:totalMass,
     alive:machines.length,wanted:targetPop,births:births,deaths:deaths}; },
