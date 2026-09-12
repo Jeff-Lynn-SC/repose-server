@@ -535,15 +535,48 @@ world came back, with no reload and nobody touching anything.
 instance is asleep now waits the minute it takes to wake, instead of being
 handed a pit of their own and never knowing. Repose works when it is watched.
 
-**And the half-second is the distance, not the machine.** Measured from Jeff's
-Mac: `/join`, which does no work at all, comes back in 389–574 ms; `/state`,
-which walks 32,400 cells twice and gzips, comes back in 310–513 ms; and the
-whole 257 KB world came back in **277 ms**, faster than a 400-byte diff. The
-server sits behind Cloudflare on HTTP/2 with connection reuse working, so it is
-not handshakes either — about 300 ms of every reply is the edge reaching the
-origin. **Optimising `pack()` would be shaving single milliseconds off 400.**
-What would actually move it is under "Also outstanding", and neither half of it
-is server code.
+**And the half-second was the server drowning, not the distance.** This
+paragraph said the opposite for three hours on 12 September. The correction is
+written here rather than tidied away, because how it was got wrong is the
+useful part.
+
+What was measured was right: `/join`, which does no work at all, came back no
+faster than `/state`, which walks 32,400 cells twice and gzips — and the whole
+257 KB world came back in 277 ms, faster than a 400-byte diff. What was
+concluded from it was wrong: that the time must be the distance to the origin.
+The origin is in Frankfurt and always has been, which Jeff said in five words.
+
+The question nobody asked was **is the world keeping up with its own clock?**
+It was not. `setInterval(advance, TICK_MS)` is meant to version the world ten
+times a second. On the free instance at `TIME_MUL` 2.4 it managed **2.45** —
+each tick overrunning its 100 ms about fourfold — and every request that
+arrived mid-tick waited behind it on the event loop. That is exactly why a
+request that does nothing cost the same as one that does everything: neither
+was doing any work, both were queueing. When the loop was free a reply came
+back in **83 ms**, which is what Frankfurt looks like. The same code on an
+ordinary processor runs at **9.99** ticks a second with eight machines and the
+server's own `load` reading 47–71%.
+
+Measured on the live server, four settings, 12 September:
+
+| `TIME_MUL` | ticks a second, of 10 | world pace | reply |
+|---|---|---|---|
+| 2.4 | 2.45 | 0.74× | 300–490 ms |
+| 0.7 | 4.9 | 0.70× | ~220 ms |
+| **0.6** | **9.2** | **0.55×** | **82 ms** |
+| 0.45 | 9.95 | 0.45× | ~80 ms |
+
+**It was never running at 2.4.** It ran at 0.74 and jammed itself to do it.
+0.6 costs about a quarter of the pace it was really achieving and makes it five
+times more responsive — and `TIME_MUL` is an environment variable that
+`README.md` has said to lower on a slow machine since the day it was written.
+Jeff set it to 0.6 in Render's environment on 12 September and chose to stay on
+the free instance for now.
+
+Everything downstream improves with it. At 82 ms a page gets a fresh snapshot
+about every tenth of a second instead of every four-tenths, so the picture
+stands about 0.15 s behind the world instead of 0.46 — which is more than
+anything else tried today would have bought.
 
 `server.js` now sends `Timing-Allow-Origin: *` as well, which costs nothing and
 lets a page read its own connect, TLS and time-to-first-byte. Without it the
@@ -715,28 +748,28 @@ nothing, because there is one quantity of sand.
 
 ## Also outstanding
 
-* **The world is a long way away, and that is the whole of the half-second.**
-  Measured 12 September: a request that does nothing comes back no faster than
-  one that packs the world, and the full 257 KB world comes back faster than a
-  400-byte diff. About 300 ms of every reply is Cloudflare's edge reaching the
-  origin. Two things would move it and neither is server code:
-  - **Put the origin nearer.** Render's region is a setting, not a change. The
-    instance is evidently a long way from Bavaria; somewhere European would
-    roughly halve the round trip. Only Jeff can do this one.
-  - **Stop paying a round trip for news that has not happened yet.** The page
-    asks, waits 400 ms, and is told about a world that moved 200 ms ago. A
-    request the server holds open until the version moves — `/state?since=N`
-    with a `wait` — answers the instant there is something to say, so the page
-    is one network leg behind instead of a whole round trip. About twenty-five
-    lines in `server.js` and one query parameter in the page; an old page
-    against a new server, or the reverse, both keep working. Not done: it
-    changes how the world is served and Jeff has not been asked. A websocket
-    would do the same and more, and is a much larger change.
+* **The world costs more than the free instance has.** At `TIME_MUL` 0.6 it
+  keeps up with room to spare and answers in 82 ms; at the 2.4 the piece is
+  tuned for it delivers 0.74× real time and jams itself doing it. The pace the
+  piece was written for needs a processor, and on Render that is the Starter
+  instance at seven dollars a month. Nothing in the code is the problem: the
+  same simulation runs at 9.99 ticks a second on an ordinary machine at 47–71%
+  load. This is the ceiling on the world getting bigger, too.
 * **`pack(since)` walks all 32,400 cells twice on every request from every
-  viewer.** Nobody can measure it costing anything today, because the round
-  trip swamps it. It will matter when the world is bigger or the origin is
-  nearer. It is the same shape as the `MAXI` bug: work sized by the whole world
-  rather than by what actually changed.
+  viewer.** Nothing can measure it costing anything today. It is the same shape
+  as the `MAXI` bug — work sized by the whole world rather than by what
+  actually changed — and it is the first thing to reach for when the world
+  grows.
+* **Server push was considered and rejected on 12 September, and the reasoning
+  is worth keeping because it looked obvious.** The idea was to have the server
+  hold a request open until the world moved. It would do nothing: the page now
+  asks again the instant it is answered, so there is never a moment when news
+  sits waiting for a question. To get news sooner the server has to speak
+  unasked — one open connection, a tick at a time — which is about four times
+  the data, because every tick would carry its own copy of every machine and
+  could not be gzipped the way a reply is. One person watching all day would
+  spend about a fifth of the free monthly bandwidth. What it buys is lag, and
+  nothing in Repose can feel lag.
 * **The buttons that need the key are dead on a phone.** They dim without
   `&key=` and the explanation is a `title` tooltip, which a phone cannot show;
   tapping says `needs &key=`. Jeff hit this on 12 September trying to add a
@@ -879,6 +912,23 @@ deploys. `repose-keys.txt` holds an unusable deploy hook and reset key and can
 be blanked.
 
 ## Hard-won lessons — please read these
+
+**Ask whether the world is keeping its own clock before blaming the network.**
+Every request looked slow; a request that did no work looked as slow as one
+that did all of it; and the conclusion drawn was that the server must be far
+away. It was in Frankfurt. It was simply overrunning its own tick fourfold and
+every request was queueing behind it on the event loop. The tick rate is
+visible from outside in one line — read `version` twice, fifteen seconds apart,
+and divide — and it would have been the first thing checked by anyone thinking
+of the server as a thing with a clock rather than a thing that answers
+questions.
+
+**And Jeff corrected it in five words.** *"the original one already is in
+frankfurt."* Three hours of careful measurement had produced a coherent,
+confident, wrong account, and it had already been written into this file. Take
+his corrections as evidence. And when a diagnosis rests on something nobody has
+checked — where the machine is, what it is doing between requests — go and
+check it before writing it down.
 
 **A tab in a window behind another window is hidden, and a hidden tab gets no
 frames at all.** Chrome opened the extension's tab in a background window on
