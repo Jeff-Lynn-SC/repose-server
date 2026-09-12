@@ -9,6 +9,12 @@ where he wants it, and that the next two things are *the glitchy video* and
 *making the whole thing look real*. The brief for that is under "What comes
 next: the look". Everything before it is what the piece already is.
 
+**Updated the afternoon of 12 September.** The glitchy video was measured
+and fixed — two separate faults, both of them real, and the page now runs at
+38 frames a second on his Mac where it ran at 9. The look is untouched, and
+the machine is still the wrong shape. `branches/perf.js` is the measurement
+kit; use it before believing anything about a frame.
+
 ## What Repose is
 
 A fixed square kilometre of sand. Machines work it. Each has one of two
@@ -494,56 +500,176 @@ derived from the machine's own parts (cab floor `y=.400`, roof `.760`, glass
 about where it sits. Leave it alone until the body is rebuilt, and derive it
 then.
 
+## The link to the world — 12 September
+
+Two faults in how a browser talks to the pit, both found while chasing the
+stutter and neither of them asked for.
+
+**It asked faster than the world could answer.** `netPoll` fired every 200 ms
+whatever was happening, and an answer takes about 400 ms from here, so there
+were always two questions in the air: the server packed the world twice, the
+network carried it twice, and the second answer was usually a version the page
+already held. It keeps one question in the air now and asks the next as soon as
+the last is answered — exactly as fast as the world can answer and no faster —
+with a floor of one of the world's own ticks, because asking twice inside one
+tick can only be told the same thing twice. Measured in the harness: **one
+request in flight where there had been two, for the same freshness.**
+
+**It gave up on the shared world after 1.2 seconds.** Six failed polls in a row
+and the browser abandoned the pit everybody is in and started computing its own
+— silently, permanently, saying so only in a readout nobody has open. It
+happened twice in an hour on 12 September to a page left open. A page that has
+reached the world now keeps asking, waiting one tick longer after each failure
+so a struggling server is not shouted at, and comes back the moment it answers.
+A page that has *never* reached the world still falls back, because that is
+what the fallback was for: a sandboxed frame, a strict policy, no world there
+at all.
+
+`branches/netfail.js` is the test, and the test is the point of the change. It
+starts a world, lets a page reach it, kills the world, and watches. Before:
+`worker` within two seconds, for ever. After: `world 69 updates  waiting (12)`
+— still the shared world, still asking — and then `world 113 updates` when the
+world came back, with no reload and nobody touching anything.
+
+**One consequence is deliberate.** A first viewer arriving while the free
+instance is asleep now waits the minute it takes to wake, instead of being
+handed a pit of their own and never knowing. Repose works when it is watched.
+
+**And the half-second is the distance, not the machine.** Measured from Jeff's
+Mac: `/join`, which does no work at all, comes back in 389–574 ms; `/state`,
+which walks 32,400 cells twice and gzips, comes back in 310–513 ms; and the
+whole 257 KB world came back in **277 ms**, faster than a 400-byte diff. The
+server sits behind Cloudflare on HTTP/2 with connection reuse working, so it is
+not handshakes either — about 300 ms of every reply is the edge reaching the
+origin. **Optimising `pack()` would be shaving single milliseconds off 400.**
+What would actually move it is under "Also outstanding", and neither half of it
+is server code.
+
+`server.js` now sends `Timing-Allow-Origin: *` as well, which costs nothing and
+lets a page read its own connect, TLS and time-to-first-byte. Without it the
+browser zeroes all of that for a cross-origin server, and an hour went into
+answering with curl and a proxy what the page could have said itself.
+
 ## What comes next: the look — 12 September
 
 Jeff, pausing on 12 September: *"I am now happy with the functional aspects. I
 want to look next at fixing the glitchy video and making the whole thing look
 real."*
 
-Two jobs. The first is a measurement, the second is a list.
+Two jobs. The first was a measurement and is done — what it found and what
+was changed is below. The second is a list and is where to pick up.
 
-### 1. The video is glitchy
+### 1. The video is glitchy — measured and fixed, 12 September
 
-**Ask him one question first: what is glitching?** A whole-scene stutter, the
-machines jumping and stalling, or the ground popping, are three different
-faults with three different causes, and the word covers all three. One
-question, and then measure — do not start guessing at the list below.
+Jeff, asked the one question first: **the whole picture stutters**, everything
+freezing together and then catching up, watching in Chrome on the Mac.
 
-Suspects, in the order the arithmetic makes them likely. **None of these has
-been measured. They are leads, not findings.**
+**The first suspect was right, and worse than the arithmetic above assumed.**
+Snapshots do not arrive every 200 ms. Measured on the live page on his machine,
+they arrive every **398 ms** — 550 at the ninth decile, 2.6 s at worst. With
+`LAG=48` the renderer had 48 ms of future to walk and then 350 ms of nothing:
 
-* **The playout buffer is shorter than the gap between snapshots.** `LAG=48`
-  milliseconds, and `netPoll` runs on `setInterval(...,200)`. The frame draws
-  at `alpha=(now-LAG-tA)/span` with `span=max(16,tB-tA)`, and `alpha` is
-  clamped to 1. If snapshots are 200 ms apart and the renderer is only 48 ms
-  behind, it runs out of future to interpolate into, holds still, and then
-  jumps when the next one lands. That is a stall-and-jump at about 5 Hz and it
-  would look exactly like glitchy video. A playout buffer has to be longer
-  than one interval plus the jitter.
-* **`tB=performance.now()` is when the packet arrived, not when the world was
-  at that state.** So every wobble in the network or in the worker's
-  scheduling becomes a change in the speed of everything on screen. The server
-  owns a step clock; the renderer should interpolate against that and smooth
-  its own estimate of it, not against arrival times.
-* **`updateTerrain` walks 180x180 vertices and their normals every frame**, and
-  `drawMachines` runs beside it. Check the frame-time trace before assuming
-  this is free.
-* **The track texture is 1 MB and `needsUpdate` fires every 150 ms.** That is a
-  full re-upload of a megabyte on whichever frame it lands on. Uploading only
-  the slice that changed, or doing it less often, is cheap to try.
-* **The free Render instance sleeps** and takes a minute to wake, and `?dev`
-  runs the local worker at about seventy times real time. Make sure you are
-  measuring the thing he is watching.
+* predicted still frames, (398 − 48) / 398 = **88.0%**
+* measured still frames = **88.2%**
 
-Measure it properly: record `performance.now()` deltas per frame and the
-arrival times of snapshots, on the live page, and look at the distribution
-rather than the average. A 60 fps average with one 300 ms hitch a second is
-the complaint.
+That fraction is set by the ratio of the lag to the gap and not by the frame
+rate, so it was the same number in every browser. The picture moved for 48 ms
+in every 400 and then jumped a third of a second when a packet landed.
+
+**And there was a second fault nobody had looked for. The frame itself cost
+41 ms of JavaScript** — only 2.7 ms of which was talking to the card. The page
+ran at **9 frames a second** on Jeff's MacBook Air. Even with a perfect
+network, 41 ms of JavaScript caps it at about 24. Where it went, measured with
+`branches/perf.js steps`:
+
+* **`updateTerrain` was 62% of the frame's JavaScript.** It rebuilt all 32,400
+  vertices every frame — a square root and two trigonometry calls each —
+  including on the 88% of frames where nothing had changed.
+* **3.47 MB of geometry went to the card every frame.** 1.17 MB of it was the
+  ground. **2.28 MB of it was machines that do not exist**: the instance
+  buffers have room for `MAXI` = 3,000 and three.js sends the whole of that
+  room unless it is told which part changed. There were three machines.
+
+Three changes. Each is kept in `branches/` as the script that made it —
+`instancefix.js`, `terrainfix.js`, `playoutfix.js` — so what was done to the
+page is legible without diffing 800 KB.
+
+1. **Tell the card how many machines there are.** `sendInstances` sets
+   `updateRange` before each upload, every frame, because three.js forgets it
+   after each one. 2.28 MB a frame became 2.3 KB.
+2. **Rebuild the ground that moved, not all of it.** `markMoved` builds the
+   list of cells where `hA` and `hB` differ — which is exactly what the world
+   said had changed — plus the four neighbours of each, because a vertex takes
+   its normal and its shading from them, plus whatever was moving last time and
+   has now stopped and must be written where it stopped. Live, with three
+   machines, that is about **1,000 cells out of 32,400**. Wear and rock are
+   compared as well: the wind scrubs them without moving any sand.
+3. **Delete the 48 and put nothing in its place.** A snapshot covers a stretch
+   of the world's own clock — the server versions the world on a fixed tick and
+   that version is already on the wire — and the renderer walks that stretch
+   while the next snapshot is on its way. So it stands exactly one snapshot
+   behind, whatever a snapshot is worth today. A packet that arrives slowly no
+   longer makes every machine on screen move slowly, because the distance
+   between two states now comes from the world rather than from the network.
+   The length of the tick is not typed either: it is whatever the versions and
+   the arrivals say it is. A packet carrying a version the page already holds
+   is ignored rather than treated as a new state with no world time in it.
+
+Measured on Jeff's Mac, live world, 400 frames, before and after:
+
+| | before | after |
+|---|---|---|
+| frames a second | 9.3 | **38.5** |
+| JavaScript in one frame | 40.9 ms | **2.6 ms** |
+| geometry to the card per frame | 3.47 MB | **0.25 MB** |
+| longest frame | 957 ms | 86 ms |
+
+And in the sandbox against a real server, where the picture's own motion can be
+watched: the world advanced at 22% of real time on a typical frame before and
+**96%** after; frames with nothing left to show, 45% → 3.7%.
+
+**The terrain change is exact, not an approximation, and there is a test that
+says so.** `node branches/perf.js terrain <url>` runs the incremental path and
+then rebuilds the whole grid in the same frame and compares. Position, normal
+and colour, 26 checks, on both the worker and the network path: **worst
+difference zero.** Run it again after touching anything in `updateTerrain` or
+`markMoved`.
+
+**What is left in the frame.** 2.6 ms of JavaScript, 0.25 MB of geometry, and
+the track texture: a full megabyte re-uploaded whenever 150 ms has passed,
+which at 38 fps is one frame in six and cost about 8 ms when it landed.
+`trackFade` only touches a sixteenth of it and `trackDab` a few square metres,
+so nearly all of that upload is unchanged bytes. The rows-that-changed version
+has not been done.
 
 ### 2. Making it look real
 
 Known and written down already, roughly in order of how much they cost the
 illusion:
+
+* **"The rendering is a bit weird on iPhone" — 12 September, undiagnosed and
+  deliberately not chased.** Jeff, on an iPhone over LTE at 18:26 local, after
+  the speed work: *"The speed is ok on iPhone but the rendering is a bit weird.
+  Don't fix this at this stage."* What is in his screenshot, described rather
+  than interpreted, so the next session is not guessing:
+  - Two machines very close together on the flank of a dune, overlapping in
+    the picture. It is not clear whether they are two machines drawn near each
+    other or two machines standing in the same place. Machines are supposed to
+    avoid each other and take damage from contact, so it is worth asking the
+    simulation where they actually were before blaming the drawing.
+  - They read as near-black and charcoal with yellow panels. On the Mac at
+    midday the same machine reads as a yellow machine with dark parts. Low sun
+    at 18:26 would darken it, but not obviously this much.
+  - A hard, straight-edged step runs across the sand below them, much crisper
+    than the dune shapes around it. It may be a shadow edge and it may not.
+  - The bloom runs at an eighth of the frame below 820 px wide against a
+    quarter above it (`makeTargets`), so a phone is not rendering the same
+    picture as the laptop and never has been.
+
+  **None of this is from the 12 September speed work.** The terrain change is
+  proven bit-identical to a full rebuild by `perf.js terrain`, and the instance
+  change alters only how many instances are uploaded, not what any of them look
+  like. Say so, but check it again rather than repeating it on trust.
 
 * **The machine is the wrong shape.** The body is about 1.4x too wide and the
   cab roof stands at 4.55 m against a real Loadall's 2.49 m. This is a
@@ -589,6 +715,40 @@ nothing, because there is one quantity of sand.
 
 ## Also outstanding
 
+* **The world is a long way away, and that is the whole of the half-second.**
+  Measured 12 September: a request that does nothing comes back no faster than
+  one that packs the world, and the full 257 KB world comes back faster than a
+  400-byte diff. About 300 ms of every reply is Cloudflare's edge reaching the
+  origin. Two things would move it and neither is server code:
+  - **Put the origin nearer.** Render's region is a setting, not a change. The
+    instance is evidently a long way from Bavaria; somewhere European would
+    roughly halve the round trip. Only Jeff can do this one.
+  - **Stop paying a round trip for news that has not happened yet.** The page
+    asks, waits 400 ms, and is told about a world that moved 200 ms ago. A
+    request the server holds open until the version moves — `/state?since=N`
+    with a `wait` — answers the instant there is something to say, so the page
+    is one network leg behind instead of a whole round trip. About twenty-five
+    lines in `server.js` and one query parameter in the page; an old page
+    against a new server, or the reverse, both keep working. Not done: it
+    changes how the world is served and Jeff has not been asked. A websocket
+    would do the same and more, and is a much larger change.
+* **`pack(since)` walks all 32,400 cells twice on every request from every
+  viewer.** Nobody can measure it costing anything today, because the round
+  trip swamps it. It will matter when the world is bigger or the origin is
+  nearer. It is the same shape as the `MAXI` bug: work sized by the whole world
+  rather than by what actually changed.
+* **The buttons that need the key are dead on a phone.** They dim without
+  `&key=` and the explanation is a `title` tooltip, which a phone cannot show;
+  tapping says `needs &key=`. Jeff hit this on 12 September trying to add a
+  filler, and said not to fix it yet. Typing a key into a URL is exactly the
+  keyboard-thing he has said he does not want. Remembering the key once it has
+  been seen to work is the obvious fix.
+* **Pushing restarts the world.** Render picked up a push to `repose-server` on
+  12 September and redeployed by itself, so the pit reloaded from its last
+  save. A tool dropped into `branches/` is enough to cause it, because
+  `push.sh` sweeps the whole folder into that repository. The old note that
+  Render does not reliably auto-deploy is half the story: it does not always,
+  and it sometimes does.
 * **`branches/probe.js` still holds the starting cohort.** Machines die and are
   replaced, so its ledger goes blind as that first cohort is killed off — it
   looks exactly like the whole pit downing tools. `branches/fill.js` was fixed;
@@ -719,6 +879,27 @@ deploys. `repose-keys.txt` holds an unusable deploy hook and reset key and can
 be blanked.
 
 ## Hard-won lessons — please read these
+
+**A tab in a window behind another window is hidden, and a hidden tab gets no
+frames at all.** Chrome opened the extension's tab in a background window on
+12 September and `document.visibilityState` was `hidden`: no
+`requestAnimationFrame` ever ran, `setInterval` was throttled to about once a
+minute, and script injection timed out because the page looked busy. Half an
+hour went into "the page is broken" before anyone asked the page whether it was
+visible. Ask first, before believing any frame measurement.
+
+**Count the bytes that actually go to the card, not the array you handed over.**
+On WebGL2 three.js uploads with `bufferSubData(target, offset, array,
+srcOffset, length)`: the array is the whole attribute and the range is the
+whole point. Measuring `array.byteLength` said a fix that worked perfectly had
+changed nothing at all, and nearly got it thrown away.
+
+**The recurring bug class has a second half: quantities sized by a maximum.**
+Alongside constants scaled to cell or machine size, look for buffers, loops and
+uploads sized by the most there could ever be rather than by how many there
+are. `MAXI` = 3,000 instance slots sent in full for three machines was 2.28 MB
+a frame. `pack(since)` walking all 32,400 cells on every request from every
+viewer is the same shape, and has not been fixed.
 
 Render does not reliably auto-deploy. Always Manual Deploy → Deploy latest
 commit and confirm before debugging anything else.

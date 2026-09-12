@@ -284,6 +284,10 @@ const server = http.createServer((req,res)=>{
   if(process.env.TRACE) console.log("  <- "+req.method+" "+req.url);
   const u = new URL(req.url,"http://x");
   res.setHeader("Access-Control-Allow-Origin","*");
+  /* so a page can time its own requests: without this the browser zeroes
+     connect, TLS and time-to-first-byte for a cross-origin server, and the
+     only way to tell the network from the machine is a shell and a guess */
+  res.setHeader("Timing-Allow-Origin","*");
   res.setHeader("Cache-Control","no-store");
   if(u.pathname==="/join"){
     const id=u.searchParams.get("id")||"";
