@@ -230,7 +230,20 @@ var fieldMode=false, TRACERS=260;
    Everything the machine can carry and everything it can cut now comes out
    of these. Redraw the bucket and the physics follows without anybody
    touching a capacity. */
-var BK_BACK=0.041, BK_TOP=0.055, BK_WIDE=0.472;   /* machine lengths */
+var BK_BACK=0.029, BK_TOP=0.023, BK_WIDE=0.381;   /* machine lengths */
+/* A real general-purpose shovel for a 540-170: 2.29 m wide, 0.98 m from the
+   back plate to the cutting edge, 0.76 m in the mouth. It holds 0.85 m3
+   struck, which is the cubic metre such a bucket is sold as once the sand
+   above the rim is counted, and 1.4 tonnes of sand against the machine's
+   four-tonne payload.
+
+   It was 2.83 m wide and 3.6 m3 - five and a half tonnes - because it was
+   drawn for a body half again too big in every direction and was never
+   redrawn when the body was made real.
+
+   Nothing else is touched by this. What the bucket holds, how deep a pass
+   cuts and the angle it is carried at are all worked out from these four
+   numbers and the cutting edge below, further down this file. */
 var BUCKET=26;                                    /* set in applyScale */
 var reposeDeg=34, slopeMax, slopeStat, slopeDyn;
 function setRepose(d){
@@ -387,7 +400,7 @@ var DETOUR=[0, 0.45, -0.45, 0.95, -0.95, 1.55, -1.55];
    Nothing charges the machine for cutting: what it cuts becomes load, and
    load is already what eats its grip.
    --------------------------------------------------------- */
-var PUSH_RES=0.55, PUSH_SPILL=0.004, BLADE_W=0.52;
+var PUSH_RES=0.55, PUSH_SPILL=0.004, BLADE_W=0.397;   /* over the side plates: 2.38 m */
 /* The deepest cut this bucket can take, and it is one number whether the
    bucket is being dragged through the sand or shoved along on the deck. It
    used to be two. */
@@ -437,10 +450,10 @@ function Machine(role,atGate,px,pz){
   this.noPush=0; this.lifted=0; this.gotPass=0; this.slump=0;
   /* the cell its summit stands in, remembered rather than looked up */
   this.si=-1; this.preH=0;
-  this.boom=-0.30; this.stick=0; this.buck=0.30; this.slew=0; this.stroke=rnd()*2;
+  this.boom=CARRY_B; this.stick=CARRY_S; this.buck=CARRY_K; this.slew=0; this.stroke=rnd()*2;
   this.wt=rnd()*10; this.ph=rnd()*6.28; this.life=8+rnd()*32;
   this.moving=0; this.digging=0; this.tipping=0;
-  this.tbA=-0.30; this.tsA=0; this.tkA=0.30; this.slewT=0;
+  this.tbA=CARRY_B; this.tsA=CARRY_S; this.tkA=CARRY_K; this.slewT=0;
   if(role===RAISE){
     this.sx=this.x; this.sz=this.z; this.ring=rnd()*Math.PI*2;
     this.best=hAt(this.x,this.z); this.lastH=this.best; this.check=0;
@@ -775,13 +788,28 @@ Machine.prototype.newJob=function(){
    machine and slides in and out; `stick` is now a length rather than an
    angle, which is why nothing here needs an elbow. The bucket cannot be
    drawn through its own boom because there is no joint for it to fold at. */
-var L_BASE=1.30, E_MAX=0.90, PITCH_LO=-0.80, PITCH_HI=1.15;
-/* The boom pivots high on this machine - level with the top of the cab -
-   so reaching the ground in front of it wants a good deal of down-pitch.
-   A limit of a quarter-turn was not enough and the teeth spent a third of
-   every dig in the air. */
-var P_BOOMX=-0.50, P_BOOMY=0.700, P_BOOMZ=0.140;   /* the boom is on the machine's right, as every Loadall's is */
-var TOOTH_X=0.275, TOOTH_Y=-0.249;     /* the cutting edge, in the bucket's own frame */
+var L_BASE=0.961, E_MAX=1.239, PITCH_LO=-0.80, PITCH_HI=1.15;
+/* Where the boom is bolted to the machine, in machine lengths. These are the
+   real thing now: a JCB 540-170 stands 2.69 m to the cab roof and the boom
+   pivots under it, at about 1.85 m, half a metre to the right of the centre
+   line. It used to pivot at 4.20 m, above a roof that stood at 4.92 m, on a
+   machine half as big again as a real one in every direction but length.
+
+   Dropping the pivot means less down-pitch is needed to put the teeth on the
+   ground - about 19 degrees where it used to want 33 - so the old note about
+   a quarter-turn not being enough no longer applies, and the limits below are
+   now what the machine can do rather than what it needs.
+
+   It also reaches about a metre further along the ground, because less of the
+   boom is spent on height. That is a consequence of the geometry, not a
+   decision. */
+var P_BOOMX=-0.408, P_BOOMY=0.308, P_BOOMZ=0.092;   /* the boom is on the machine's right, as every Loadall's is */
+/* What a 540-170 clears underneath: 0.40 m off the published dimensions, in
+   machine lengths. It is what decides how low a loaded bucket can be carried,
+   because a bucket held lower than the machine's own belly is caught by
+   ground the machine was going to be stopped by anyway. */
+var CLEAR_Y=0.0667;
+var TOOTH_X=0.192, TOOTH_Y=-0.104;     /* the cutting edge, in the bucket's own frame */
 var _tw={x:0,z:0,y:0};
 function toothWorld(a){
   var d1=a.boom, d3=d1+a.buck, L=L_BASE+a.stick;
@@ -809,6 +837,46 @@ function armTo(tx,ty){
   _ik.b=p; _ik.s=d-L_BASE;
   return _ik;
 }
+
+/* ---- the pose a machine travels in ----
+
+   This used to be three angles typed into four places. They were tuned when
+   the boom pivoted at 4.20 m and they happened to hold the teeth forty
+   centimetres up; on a machine whose pivot is 1.85 m the same three angles
+   put the arm a metre into the sand. An answer with its question thrown
+   away, which is the same mistake as a length in machine lengths that
+   quietly meant metres.
+
+   The question, written down, is two constraints and nothing else.
+
+   The bucket is racked back until its opening is level. Roll it back less
+   and sand runs out over the teeth; roll it back more and it holds no more
+   than it already does. That angle is the bucket's own section - the same
+   two distances its capacity is worked out from, three hundred lines up.
+
+   And the load is carried as low as the machine's own belly, because
+   anything low enough to catch the bucket has already caught the machine.
+   Whichever corner of the bucket ends up lowest once it is racked back sits
+   at the ground clearance.
+
+   The boom is right in, so its tip lies on the circle of the retracted
+   length and the height alone decides the pitch. armTo does the rest, the
+   same way every other pose in this file is solved. Change the bucket and
+   this changes with it; there is nothing here to re-tune. */
+var K_CARRY=Math.atan2(BK_TOP-TOOTH_Y,TOOTH_X-BK_BACK);
+var CARRY_B,CARRY_S,CARRY_K;
+(function(){
+  var cr=Math.cos(K_CARRY), sr=Math.sin(K_CARRY), lo=1e9, i, y;
+  /* the three corners of the section: the heel, the top of the back plate,
+     and the teeth. Which of them hangs lowest depends on the roll, so it is
+     asked rather than assumed */
+  var P=[BK_BACK,TOOTH_Y, BK_BACK,BK_TOP, TOOTH_X,TOOTH_Y];
+  for(i=0;i<6;i+=2){ y=P[i]*sr+P[i+1]*cr; if(y<lo) lo=y; }
+  var ty=CLEAR_Y-lo-P_BOOMY;                            /* where that leaves the end of the boom */
+  var tx=Math.sqrt(Math.max(0,L_BASE*L_BASE-ty*ty));    /* fully in, so the tip is on that circle */
+  var k=armTo(tx,ty);
+  CARRY_B=k.b; CARRY_S=k.s; CARRY_K=K_CARRY-k.b;
+})();
 
 /* The blade on the deck. Boom pulled right in, bucket nose down, the
    cutting edge a given depth below whatever the ground under it happens to
@@ -997,7 +1065,7 @@ Machine.prototype.step=function(dt,self){
          spread it across two cells instead of one. It points at the job
          first, and only then works it. Nothing is dug or tipped meanwhile;
          the arm simply waits, which is what an arm does. */
-      this.tbA=-0.30; this.tsA=0; this.tkA=0.30;
+      this.tbA=CARRY_B; this.tsA=CARRY_S; this.tkA=CARRY_K;
       this.digging=0; this.tipping=0;
     }else{
     var reach=dist/machLen;
@@ -1053,7 +1121,7 @@ Machine.prototype.step=function(dt,self){
       var k=armTo(r-P_BOOMX-(TOOTH_X*Math.cos(d3)-TOOTH_Y*Math.sin(d3)),
                   ty-P_BOOMY-(TOOTH_X*Math.sin(d3)+TOOTH_Y*Math.cos(d3)));
       var tk=d3-k.b;
-      if(this.idle){ this.tbA=-0.30; this.tsA=0; this.tkA=0.30; }
+      if(this.idle){ this.tbA=CARRY_B; this.tsA=CARRY_S; this.tkA=CARRY_K; }
       else { this.tbA=k.b; this.tsA=k.s; this.tkA=tk; }
       /* only cuts, and only gets anywhere, while the teeth are in the ground */
       /* The pass advances because the arm is moving, not because sand is
@@ -1184,7 +1252,7 @@ Machine.prototype.step=function(dt,self){
     }
     }
   } else if(this.mode!=="push"){
-    this.tbA=-0.30; this.tsA=0; this.tkA=0.30; this.slewT=0;
+    this.tbA=CARRY_B; this.tsA=CARRY_S; this.tkA=CARRY_K; this.slewT=0;
     this.digging=0; this.tipping=0;
   }
 

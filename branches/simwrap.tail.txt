@@ -1,0 +1,23 @@
+module.exports={
+  applyScale:applyScale, substep:substep, stats:stats, beget:beget,
+  measurePopulation:measurePopulation,
+  get h(){return h}, get wear(){return wear}, get rock(){return rock}, get h0(){return h0},
+  get machines(){return machines},
+  packMachines:packMachines, unpackMachines:unpackMachines,
+  get rng(){return RNG},
+  get N(){return N}, get CS(){return CS}, get HALF(){return HALF},
+  get BASE(){return BASE}, get machLen(){return machLen},
+  get mixRaise(){return mixRaise}, set mixRaise(v){mixRaise=v},
+  get reposeDeg(){return reposeDeg},
+  get windStr(){return windStr}, get windDir(){return windDir},
+  get windGust(){return windGust}, windStep:windStep,
+  get figures(){ return {mean:meanH,max:maxH,min:minH,gini:gini,stripped:stripped,buried:buried,
+    tracked:tracked,collapses:collapses,nA:nA,nB:nB,mass:totalMass,
+    alive:machines.length,wanted:targetPop,births:births,deaths:deaths}; },
+  get maxH(){return maxH}, get gini(){return gini}, get stripped(){return stripped},
+  get collapses(){return collapses},
+  get simTime(){return simTime}, set simTime(v){simTime=v},
+  get targetPop(){return targetPop}, set targetPop(v){targetPop=v},
+  set evN(v){evN=v}, set dustN(v){dustN=v},
+  seedRNG:seedRNG
+};

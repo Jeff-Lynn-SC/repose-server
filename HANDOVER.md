@@ -9,6 +9,18 @@ where he wants it, and that the next two things are *the glitchy video* and
 *making the whole thing look real*. The brief for that is under "What comes
 next: the look". Everything before it is what the piece already is.
 
+**Updated 15 September.** The machine rebuilt on the 13th went live, and
+three things had to be put right first, all of them the same disease. The
+bucket was not attached to the boom: a fourth copy of the boom's old length,
+typed into `drawMachines`, left it floating 2.2 m past the end of the arm. The
+bucket itself was then made real — a 540-170's own shovel, 2.29 m wide holding
+about a cubic metre, where it had been 2.83 m and 3.6 m³. And the boom section
+was still 1.20 m deep on a machine 2.44 m wide, because `patch6` shortened the
+boom and left its section at the size it was drawn for a machine half again too
+big. See "The bucket made real". `ROADMAP.md` is the plan this is step one of,
+and it has been corrected three times since it was written — read the
+corrections, not just the plan.
+
 **Updated the afternoon of 12 September.** The glitchy video was measured
 and fixed — two separate faults, both of them real, and the page now runs at
 38 frames a second on his Mac where it ran at 9. The look is untouched, and
@@ -51,8 +63,22 @@ what it deleted. Read it before adding anything.
 ## READ THIS FIRST: you can see, and you can stop time
 
 `index.html` has three.js inlined, and when the live server is unreachable the
-page falls back to computing a world itself in its own worker. The sandbox
-cannot reach Render — so the page always falls back. Therefore:
+page falls back to computing a world itself in its own worker.
+
+**The sandbox can reach `*.onrender.com` now, and that is a trap rather than a
+convenience.** This file said it could not. On 15 September a headless render of
+the new machine came back with every bucket driven into the sand and every nose
+down; it looked like a broken rebuild, and it was the new page being posed by a
+server two days behind it. A page loaded in the sandbox joins the **live** world
+unless you stop it:
+
+    await p.route("**://*.onrender.com/**", r => r.abort());
+
+Put that in before `goto` when you are judging the page's own simulation; leave
+it out when you want to see exactly what Jeff sees. Know which one you are
+doing, and read the `world`/`worker` word in the dev readout of every shot to
+check. `api.render.com` is still refused, so deploying still cannot be done for
+him. Therefore:
 
 ```
 python3 -m http.server 8099
@@ -583,6 +609,174 @@ lets a page read its own connect, TLS and time-to-first-byte. Without it the
 browser zeroes all of that for a cross-origin server, and an hour went into
 answering with curl and a proxy what the page could have said itself.
 
+## The machine made real — 13 September
+
+Jeff, on 13 September, looking at the piece running well and still not
+believing it: *"they look like simple cartoons... how do we get the whole
+thing looking real"*. `ROADMAP.md` is the answer to that as a plan. This is
+step one of it, done.
+
+The machine was the wrong size and the wrong shape, and everything hung off it
+had been tuned to the wrong one. Five changes. They are in
+`NEW-MACHINE-preview.html` and they are **not pushed**.
+
+* **Real dimensions.** A JCB 540-170: 2.69 m to the cab roof, 2.44 m over the
+  tyres, 2.75 m wheelbase, 0.40 m of ground clearance, 4.0 tonnes of payload.
+  The body had been about 1.4 times too wide with a roof at 4.55 m.
+* **The boom pivots where a real one does** — 1.85 m up instead of 4.20 m,
+  half a metre right of the centre line. JCB do not publish the pivot height;
+  1.85 m is read off the roof line above it and is the one soft number in the
+  whole rebuild. Two things follow from it rather than being chosen: less
+  down-pitch is needed to put the teeth on the ground, about 19 degrees where
+  it used to want 33, and the machine reaches about a metre further along the
+  ground because less of the boom is spent on height.
+* **One constant instead of three copies of it.** `drawMachines` kept its own
+  idea of where the wheels and the boom pivot were. Changing the geometry
+  changed the machine and not the drawing's belief about it. Caught before it
+  shipped; they all point at one constant now.
+* **A machine stands on its wheels.** It used to read the ground under its
+  centre, tilt to the gradient at that single point, and then sink the whole
+  machine by 0.05 machine lengths — thirty centimetres, typed, and tuned when
+  the body stood 4.9 m tall with nearly a metre of clearance under it. The
+  real body has forty centimetres, so the same thirty buried it to the axles.
+  It now reads the ground under each of its four wheels, sits at the mean of
+  those four, tilts by the difference front-to-back and side-to-side, and each
+  wheel then sits on its own ground. Nothing is typed: where a machine stands
+  is where its wheels are. It also stops a six-metre machine balancing on one
+  point of a grid whose squares are 5.6 m across.
+* **A machine carries its bucket rather than dragging it.** The travel pose
+  was three angles typed into four places — boom -0.30, no extension, bucket
+  +0.30 — and on the old machine they happened to hold the teeth about forty
+  centimetres off the ground. On the new one the same three angles put the arm
+  a metre into the sand: measured over eight simulated minutes with eight
+  machines, below the sand 88% of the time against 13.8% before, typically
+  1.08 m under and 3.71 m at the worst.
+
+  The three angles were never wrong. They were an answer to a question nobody
+  had written down, and the machine underneath them changed.
+
+  So the question is written down now and the angles fall out of it. The
+  bucket is racked back until its opening is level — roll it back less and
+  sand runs out over the teeth, roll it back more and it holds no more than it
+  already does — and the load is carried as low as the machine's own belly,
+  because anything low enough to catch the bucket has already caught the
+  machine. Everything else comes out of the bucket's own section, through the
+  same `armTo` that solves every other pose in the file. Change the bucket and
+  the carry pose changes with it; there is nothing left to re-tune.
+
+  Measured after: below the sand 15.6% of the time, against 13.8% for the old
+  machine, and the teeth more than 0.6 m under 6.3% of the time against the
+  old machine's 7.3%. What is left is mostly the teeth being in the sand
+  during a dig, which is where they are supposed to be.
+
+**And what it cost the dig: nothing measurable.** Fifteen simulated minutes,
+eight raisers, seed 777 — mean summit relief 2.40 m against 2.45, tallest
+5.14 m against 5.24, 1,186 m³ moved against 1,210. Inside two per cent, which
+is inside the noise of a different path through the same sand.
+
+~~**The bucket is still about three times too big.**~~ **Done on 15 September,
+and it was worse than too big — it was not attached.** See "The bucket made
+real" below.
+
+**How to look at it:** double-click `NEW-MACHINE-preview.html` in this folder.
+It talks to the same live world as the published page, so it is the new
+machine in the real world. Nothing about it is public and `push.sh` does not
+touch it.
+
+**How it was done, and how to redo any of it:** `branches/patch6.js` through
+`patch11.js`. Each takes an `index.html`, counts every anchor before it writes
+anything, aborts if a count is wrong, and verifies afterwards.
+`branches/mksim.js` lifts the simulation out of a page and makes it a node
+module so it can be measured — it only ever reads from the page, never the
+other way round. `branches/boomclear.js` asks how often the arm is under the
+sand.
+
+## The bucket made real — 15 September
+
+Jeff, on the machine rebuilt the night before: *"do the bucket now."* Three
+changes, `branches/patch12.js` to `patch14.js`, each of which proves every
+anchor before it writes anything. They rebuild the file from the untouched
+preview in order, and that was run from scratch and checked byte-identical
+against the file that was then rendered and measured.
+
+**The bucket was not attached to the machine.** `patch6` shortened the boom
+from 1.30 machine lengths to 0.961 and set `BL`, which the boom and its inner
+section are drawn from. The point the bucket hangs from was a separate typed
+`1.30` in `drawMachines`, and nothing found it — so the bucket was drawn 2.2 m
+past the end of the arm with nothing joining them, and 2.0 m further out than
+the simulation puts the teeth. It is visible from any angle the moment the
+machine is looked at, and it went unnoticed for a day because **nobody rendered
+the rebuild**. The write-up said the machine was measured, and it was: the dig
+was measured, the arm clearance was measured, and no one took a picture.
+
+The two live in different scripts — the simulation is a `<script id="simsrc">`
+turned into a worker — so the drawing cannot share the simulation's constants
+and has to keep its own copies. That is exactly why a third and fourth copy of
+one length can sit in the file disagreeing, and it is worth knowing where those
+boundaries are: `P_BOOMX/Y/Z`, `L_BASE` and the bucket's four section numbers
+all exist twice, on purpose, and must agree.
+
+**The bucket is a real one now.** A JCB 540-170 takes a general-purpose shovel
+2.29 m wide holding about a cubic metre — that is what is actually sold for
+this machine. Its section is 0.98 m from back plate to cutting edge and 0.76 m
+in the mouth, which is **0.85 m³ struck**: 1.4 tonnes of sand against a four
+tonne payload. It was 2.83 m and 3.6 m³, five and a half tonnes, because it was
+drawn for a body half again too big in every direction and was never redrawn
+when the body was made real. Once the body around it came down to life size it
+read as bigger than the cab.
+
+Nothing else in the simulation was touched. What the bucket holds, how deep a
+pass cuts and the angle it is carried at all fell out of those four numbers, as
+they were built to. On the drawing side the same four are now written once as
+`BKX0/BKY1/BKX1/BKY0` and every part of the bucket, the sand heaped in it, the
+way that sand slides forward as it empties and the wedge it shoves are
+fractions of them — seven more typed answers whose question had been thrown
+away, now gone.
+
+**What it cost, eight raisers, seed 777, same world.** The left-hand column
+reproduces the 13 September figures to the decimal, so the instrument is
+measuring the same thing it measured then.
+
+| | 3.6 m³ | real 0.85 m³ |
+|---|---|---|
+| summit at 15 min | 2.40 m | 0.90 m |
+| summit at 40 min | 3.91 m | 2.05 m |
+| tallest at 40 min | 6.83 m | 3.82 m |
+| sand moved in 40 min | 3,161 m³ | 711 m³ |
+| hill per m³ moved | — | **2.3× more** |
+| collapses in 40 min | 24 | **0** |
+| boom in the sand | 14.3% of the time, 2.09 m at worst | **7.0%, 0.83 m** |
+
+A fifth of the sand, half the hill, and more than twice as much hill for every
+cubic metre shifted. It also halves what was left of the arm-under-the-sand
+problem, because a smaller bucket racked back at belly height does not reach as
+far down, and the teeth are more than 0.6 m under 0.4% of the time against 6%.
+
+**The open question, and it is a real one: nothing collapses any more.** In
+forty minutes the old bucket's hills failed twenty-four times and the new one's
+failed not once. That is not the test going blind — what counts as a collapse
+is the machine's own bucket, so a smaller bucket makes it *more* sensitive, not
+less. The hills are simply built slowly enough that the sand settles as it
+goes, and at 3.8 m they have not reached an angle it will refuse. A hill coming
+down is the sand refusing, which is the piece, so if it stays this quiet over
+hours that is worth knowing about. **A two-hour run was started on 15 September
+and its answer is not in this file yet.** Run `node summit.js 120 8` in a
+directory built by `mksim.js` and put the number here.
+
+**The boom section, which was the same disease again.** `patch6` shortened the
+boom and left its section at 1.20 m deep and 1.14 m wide — a boom thicker than
+the cab is tall, on a machine 2.44 m across — and the inner section at
+0.95 × 0.90 m barely fitted inside it. They are 0.55 × 0.45 m and
+0.42 × 0.34 m now, with the ram diameters and the headstock following. The
+0.45 m is read off the machine's own proportions rather than published, and is
+the second soft number in the machine after the 1.85 m pivot. Drawing only:
+nothing in the simulation knows about it.
+
+What is still an approximation and is now the largest thing on the machine:
+`GEO_BLOB`, the single lump drawn instead of an arm when a machine is far
+enough away to be a few pixels, still has the old proportions. It has never
+been looked at against the real body.
+
 ## What comes next: the look — 12 September
 
 Jeff, pausing on 12 September: *"I am now happy with the functional aspects. I
@@ -704,11 +898,11 @@ illusion:
   change alters only how many instances are uploaded, not what any of them look
   like. Say so, but check it again rather than repeating it on trust.
 
-* **The machine is the wrong shape.** The body is about 1.4x too wide and the
-  cab roof stands at 4.55 m against a real Loadall's 2.49 m. This is a
-  simulation change, not a drawing change: `AX` equals `WR`, the body carries
-  the boom pivot at `y=0.700`, and `toothWorld` is built on it, so the dig has
-  to be measured again afterwards. It is the biggest single thing.
+* ~~**The machine is the wrong shape.**~~ **Done, and live on 15 September** —
+  see "The machine made real" and "The bucket made real". Body, boom, bucket
+  and the pose it travels in are all the real machine's now. What is left on
+  the machine is detail density rather than dimensions, and that is step 6 of
+  `ROADMAP.md` and should not be touched before the light is right.
 * **Night is flat.** Sun below the horizon means flat ambient. Needs a moon,
   work lights that illuminate rather than glow, and adaptive exposure. `?hour=2`.
 * **Nothing ages.** Damage is carried and entirely invisible: no paint fade, no
@@ -906,12 +1100,45 @@ after a push. Deleting it is what made him type a code twice in one day.
 Do not use client id `Iv1.b507a08c87ecfe98` — that is the GitHub CLI's App and
 its token has no scopes.
 
-Deploying and resetting cannot be done for him. The sandbox refuses
-`api.render.com` and `*.onrender.com` from every shell. So: you push, Jeff
+Deploying and resetting cannot be done for him: the sandbox refuses
+`api.render.com`. It does **not** refuse `*.onrender.com` any more — the live
+world can be read from the sandbox with curl or from a page, which is new since
+this file first said otherwise, and is how the tick rate and the machine count
+can now be checked directly. So: you push, Jeff
 deploys. `repose-keys.txt` holds an unusable deploy hook and reset key and can
 be blanked.
 
 ## Hard-won lessons — please read these
+
+**Look at it. A thing can be measured three ways and never seen.** The machine
+rebuilt on 13 September had its dig measured, its arm clearance measured and
+its travel pose measured, and the bucket was hanging 2.2 m off the end of the
+boom in mid-air the whole time. One screenshot would have caught it in a
+second. Every measurement that was taken was of something the bucket's position
+does not enter into, so all of them passed. **When you change what a thing
+looks like, look at what it looks like** — and put the picture in front of Jeff,
+because he is the one who has been catching these.
+
+**And when you shorten, resize or move a part, go and find every copy of the
+number.** The boom's length existed four times: `L_BASE` in the simulation,
+`BL` in the drawing, the boom and stick meshes built from `BL`, and a bare
+`1.30` where the bucket hinges. `patch6` changed two of them. The bucket's
+width existed twice, as `BK_WIDE` and `BLADE_W`, and they disagreed by 10%
+before anyone noticed. Grep for the old value across the whole file, not for
+the name of the constant — the copies are copies precisely because they could
+not use the name.
+
+**And a third half: an answer whose question was never written down.** The
+travel pose was three angles typed into four places. They were not arbitrary —
+on the machine of the day they held the bucket forty centimetres off the
+ground, which is right. But only the answer was written down, so when the
+machine changed the answer stayed and quietly became a metre of boom under the
+sand. This is the same disease as a constant scaled to `machLen` that means
+metres: a number that was once derived, recorded as a number. When you find a
+typed constant in this file, the useful question is not "is it the right
+value" but "what was it the answer to, and is that still the question?" Then
+write the question down in code, and let the value follow.
+
 
 **Ask whether the world is keeping its own clock before blaming the network.**
 Every request looked slow; a request that did no work looked as slow as one

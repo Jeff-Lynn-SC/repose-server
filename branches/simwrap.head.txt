@@ -1,0 +1,4 @@
+/* Repose — the simulation, as a normal module so that V8 will optimise it.
+   Running this through vm/eval instead makes each step about a hundred times
+   slower, which is enough to stall the whole server. */
+var self={postMessage:function(){},onmessage:null};
