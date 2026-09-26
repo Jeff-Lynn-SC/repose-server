@@ -932,6 +932,38 @@ afternoon. **A baseline from a fortnight ago is not a baseline.** Measure the
 control in the same sitting as the thing — which is what the last row of that
 table is, and it is the only row that made the answer obvious.
 
+### The lamps were on the bucket — 26 September, within the hour
+
+Jeff, on the live page the night it went out: *"the light looks really good
+but we get these mysterious floating spots. what are they."* Pairs of bright
+squares hanging in the sky with nothing under them.
+
+    var mH=joint(_mA,mU,0,0,0,0,0);      <- mH IS _mA, not a copy of it
+    var mS=joint(_mA,mBo,st,0,0,0,0);    <- _mA overwritten: mH is the stick now
+    _mA.copy(mK);                        <- and now it is the bucket
+    ... sixty lines later ...
+    LAMPS.setMatrixAt(i,mH);             <- so this is the bucket's place
+
+`joint` returns the scratch matrix it was handed. Calling it `mH` does not
+make it the house's; it stays a pointer at a pad the next two lines write
+over. The lamp boxes have therefore been drawn at the end of the arm since
+the day they were added, rising into the air whenever a machine lifted its
+boom. Nobody saw it because the forty-two-metre painted disc was what the eye
+went to, and two specks somewhere near a machine read as lamps on a machine.
+`patch17` then hung the light off the same `mH`, so the beams came out of the
+bucket too — and with the disc gone the lamps became the only thing to look
+at and the fault became the picture.
+
+`_mHouse` is not scratch: the house is copied into it while it is still the
+house. `patch24.js`.
+
+**The lesson, and it is a new one for this file.** Everything else here has
+been a constant that meant something different than it said. This is a
+*variable* that meant something different than it said, sixty lines after it
+was right, because it was an alias for a buffer somebody else was using.
+Anything named after a thing and used later in the same loop wants its own
+storage — and if a value has to survive a few lines of arithmetic, copy it.
+
 ### Still wrong, and known
 
 * **The lamp's brightness is arbitrary.** Halving it looked identical because
