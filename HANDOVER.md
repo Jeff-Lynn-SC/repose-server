@@ -9,6 +9,13 @@ where he wants it, and that the next two things are *the glitchy video* and
 *making the whole thing look real*. The brief for that is under "What comes
 next: the look". Everything before it is what the piece already is.
 
+**Updated 26 September.** The night is real: lamps that are on the machines
+and actually emit, a moon computed the way the sun is, and a night dark
+enough to need them. The exposure that was held back since the 13th is on
+with it, because a metered exposure needs something true to meter and an
+invented ambient floor is not it. See "The night made real". Two of
+`ROADMAP.md`'s claims about light are disproved in there by measurement.
+
 **Updated 15 September.** The machine rebuilt on the 13th went live, and
 three things had to be put right first, all of them the same disease. The
 bucket was not attached to the boom: a fourth copy of the boom's old length,
@@ -777,6 +784,169 @@ What is still an approximation and is now the largest thing on the machine:
 enough away to be a few pixels, still has the old proportions. It has never
 been looked at against the real body.
 
+## The night made real — 26 September
+
+Jeff, looking at the night: *"where is the light coming from at night? it
+should be lights on the bots not some mystical spotlight."* He was right and
+the answer was nowhere.
+
+**What was there.** Two small boxes on the cab made of `MeshBasicMaterial`,
+which glow and emit nothing. And, entirely separately, a flat disc laid on
+the sand fourteen metres in front of the machine, seven machine lengths
+across — forty-two metres of painted gradient, blended additively at nine
+tenths. It did not come from the lamps, did not know where the machine was
+pointing, did not fall on the shape of the ground, did not shorten when the
+machine nosed down a slope, and lit neither the machine carrying it nor
+anything else. The file's own comment said real lamps were impossible: *"a
+few thousand point lights is not a thing a browser will do."* True of
+three.js lights and beside the point — the sand is a shader of our own and
+so are the machines, and either can be handed the nearest few lamps and work
+out what it is receiving.
+
+**What it is now.** Each machine carries one lamp on the leading edge of its
+cab roof, aimed where the machine is aimed, tilted down the way a work light
+is hung. The eight nearest the camera go to both shaders every frame; the
+arithmetic is the lamp's power over the square of the distance, times how
+squarely the light lands, inside a cone with a soft edge. Machines are lit by
+their own lamp and by their neighbours', which is why you can see a boom and
+a bucket at night. `patch16.js` and `patch17.js`.
+
+**The lamps were not on the machine.** The two boxes were drawn at
+`x=.34, y=.33, z=-.225` and `-.065`. The cab roof spans `x -.146..0.180`,
+`z -.195..-.012`, top at `y=.449`. So one lamp hung a metre in front of the
+machine and outside it, and the other a metre in front at window height.
+They have been in mid-air since 13 September — the same leftover as the
+bucket and the boom — and nobody saw it because at night two bright specks
+roughly in the right place look like two bright specks exactly in the right
+place. And when the light was added, a THIRD position was typed for it. Glow,
+light and cab were three different opinions about where a lamp is. Four
+numbers say where they are now and everything is built from them.
+`patch22.js`.
+
+**Those were not stars.** The composite added a fixed ±0.015 of grain BEFORE
+the gamma encode. At midday that is a fiftieth of the signal; at two in the
+morning it is most of it, and `pow(x,1/2.2)` then renders a speck of 0.015 at
+16% grey. It is applied after the encode now. `patch18.js`.
+
+**A real moon.** Position and phase computed the same way the sun always has
+been, for 48.05 N 10.88 E — the largest terms of the lunar theory, good to
+about a third of a degree. Checked against a published calendar: it puts new
+moon at 11 September 01:00 UTC and full moon at 26 September 19:00 UTC,
+against a published 11th/12th and 26th. A full moon is opposite the sun and
+therefore up all night; the geometry does that, not a rule. `patch19.js`.
+
+**And the night floor was invented.** `hemi` had a floor of 0.10 and the blue
+`rim` light another 0.10, both from nothing, and between them they lit the
+whole pit an even brown all night. That is the "night is flat" line in the
+roadmap. It is the moon and starlight now — and the moon is why the exposure
+work could finally be turned on: there was nothing true to meter before.
+
+### The exposure, and two corrections to the plan
+
+`patch10.js` was held back on 13 September as a design error needing partial
+adaptation. **It was a plain bug.** It metered `rtB` — the bloom, a
+bright-pass blur — and a pit of sand under a hazy sun has almost no
+highlights, so that buffer is very nearly black. The meter returned 0.00098
+at noon and at midnight alike, which is 2^-10, the floor of its own log
+encoding, asked for an exposure of 180 both times and got the clamp of 40.
+That is why midnight came out brighter than midday. Metering `rtScene` gives
+0.32 at one in the afternoon, 0.029 at six, 0.026 at two. `patch15.js`.
+
+**The roadmap's second claim is backwards.** It said skylight at two thirds
+of sunlight is why midday has no shadow in it, and a sixth is the real
+figure. It is. But measured at 13:00 with the exposure held steady, midday
+used **88** values of 255 with the skylight as it was, **63** cut to a sixth,
+**53** nearly off. More skylight, more shape — because on a dune field that
+light is not acting as skylight at all, it is standing in for how much sky
+each patch of sand can see, which is what gives a dune its form at noon. It
+is back as it was. The honest fix is not to turn the sky down but to work out
+what each cell's horizon actually is; the height field knows.
+
+**And midday's flatness is not the light.** Removing the rim light, halving
+the skylight and changing the exposure target were each measured and none of
+them widened the midday histogram. With the exposure metering, absolute
+brightness stops mattering and only ratios do — turn a light down and the
+meter opens up. Midday is the sand's surface, which is step 4.
+
+**A cut is not a journey.** The exposure eases toward what the frame asks
+for, which is right while a shot runs and wrong across a cut: nothing
+travelled, so there is nothing to adjust from. It settles at once when
+`chooseShot` fires. Watched for a minute at each of three times with the
+director running: daylight wanders by 7% and nothing else; dusk and night
+swing two to three times with the shot, which is an eye doing its job.
+`patch23.js`.
+
+### The horizon band, and four things it was not
+
+There is a cream band lying along the horizon. On the live page it was 1.6
+times the open sand; with the night made dark it stood out badly.
+
+**It was the fog, and the fog colour had never once been set.** Read off the
+running page at two in the morning: `(0.239, 0.204, 0.157)` — the value
+`FogExp2` was constructed with, 0x3d3428. The night sky's horizon is
+`(0.0013, 0.0025, 0.0089)`, so distant sand, 84% fog at a kilometre, was
+being painted a warm brown a hundred and eighty times brighter than the sky
+it was blending into. Why it never updated is the good part: the colour was
+set inside `if(Math.abs(sunAlt-lastSkyAlt)>0.35)`, guarded by `if(fogRef)`.
+The frame loop calls `updateSun` on its first frame, long before the world
+arrives and therefore before the fog exists. That call found `fogRef` null,
+did nothing — and set `lastSkyAlt`. Every later call found the gate shut. One
+early call with nothing to colour, and the fog kept its factory brown for the
+life of the page. It is set every time the sun is now, outside any gate: a
+thing that must stay in step with something else does not get to be cached.
+`patch21.js`.
+
+**Ruled out by measurement, not reasoning, after I guessed wrong twice.** Not
+the sky cube's ground half (`patch20.js` removed a constant 0.06 floor there
+that made the ground half 46x brighter than the sky at night — a real fault,
+and the band measured 160 against 158 after it, i.e. unchanged). Not the
+background. Not the environment. **Not the moon** — switched off entirely,
+not dimmed, and the band did not move: 1.74 against 1.69. What remains is
+1.71 against the open sand, down from 2.32, and unexplained. Nobody has yet
+established whether it is sky or terrain.
+
+### What it costs, measured on Jeff's Mac
+
+Not in the sandbox: software rendering cannot see a pipeline stall and
+over-states fragment work, and both of those matter here. `FPSTEST2.html` in
+the folder builds itself from the page, pins the camera, and runs six
+configurations twice.
+
+| | fps |
+|---|---|
+| everything on | 15 |
+| lamps off | 16 |
+| auto-brightness off | 16 |
+| all four off | **15** |
+
+**Everything this batch adds costs about one frame.** Phone: 60. Two rows are
+missing from that table on purpose — "moon light removed" and "sand bounce
+removed" both read 12, i.e. *slower*, because switching a light off makes
+three.js rebuild every shader and the rebuild landed inside the count. Those
+rows measure a recompile.
+
+**And the false alarm is the lesson.** The Mac read 10, then 14, then 15
+against a 38 measured on 12 September, and half a day went into hunting a
+regression that did not exist. His machine was simply having a slow
+afternoon. **A baseline from a fortnight ago is not a baseline.** Measure the
+control in the same sitting as the thing — which is what the last row of that
+table is, and it is the only row that made the answer obvious.
+
+### Still wrong, and known
+
+* **The lamp's brightness is arbitrary.** Halving it looked identical because
+  the exposure compensates, which is not the same as choosing it. What
+  matters is the ratio to moonlight and nobody set it.
+* **The moon casts no shadow.** The sun owns the only shadow map and is below
+  the horizon all night, so a full moon lights the dunes and nothing it
+  lights casts anything. Machines float slightly.
+* **`GEO_BLOB` still has the old proportions** — the lump drawn instead of an
+  arm at distance, which at night is a blob with a beam coming out of it.
+* **Whether hills built with the real bucket ever collapse is still not
+  known.** Three attempts at a long run were killed by the sandbox and by the
+  device VM being reclaimed. Neither survives a job over about forty minutes;
+  run it somewhere that does.
+
 ## What comes next: the look — 12 September
 
 Jeff, pausing on 12 September: *"I am now happy with the functional aspects. I
@@ -903,8 +1073,11 @@ illusion:
   and the pose it travels in are all the real machine's now. What is left on
   the machine is detail density rather than dimensions, and that is step 6 of
   `ROADMAP.md` and should not be touched before the light is right.
-* **Night is flat.** Sun below the horizon means flat ambient. Needs a moon,
-  work lights that illuminate rather than glow, and adaptive exposure. `?hour=2`.
+* ~~**Night is flat.**~~ **Done, 26 September** — a real moon with its real
+  phase, lamps on the machines that light the sand and each other, the
+  invented ambient floor gone, and the adaptive exposure on top of it. See
+  "The night made real". What is still missing at night is a shadow: the sun
+  owns the only shadow map and it is below the horizon.
 * **Nothing ages.** Damage is carried and entirely invisible: no paint fade, no
   rust, no dust on the machine. Needs a byte per machine on the wire.
 * **The sand.** Ripples are a shader flourish laid over a 5.6 m grid. What the
@@ -1100,13 +1273,30 @@ after a push. Deleting it is what made him type a code twice in one day.
 Do not use client id `Iv1.b507a08c87ecfe98` — that is the GitHub CLI's App and
 its token has no scopes.
 
-Deploying and resetting cannot be done for him: the sandbox refuses
-`api.render.com`. It does **not** refuse `*.onrender.com` any more — the live
-world can be read from the sandbox with curl or from a page, which is new since
-this file first said otherwise, and is how the tick rate and the machine count
-can now be checked directly. So: you push, Jeff
-deploys. `repose-keys.txt` holds an unusable deploy hook and reset key and can
-be blanked.
+**Deploying no longer needs Jeff either, as of 15 September.** Every shell —
+the sandbox's and the one on his Mac — is refused by `api.render.com`, and that
+refusal is what this file has always meant by "you push, Jeff deploys". But the
+**browser pane in the Claude desktop app is on his Mac's own network and not
+behind that proxy**, so it reaches `api.render.com` perfectly well. Open the
+`DEPLOY_HOOK` URL from `repose-keys.txt` in it and Render starts a deploy:
+
+    Claude_Browser__request_access  https://api.render.com   (scope: site)
+    Claude_Browser__preview_start   <the DEPLOY_HOOK url>
+    Claude_Browser__get_page_text   ->  {"deploy":{"id":"dep-..."}}
+
+Then poll `/join?id=` until its `build` field reads the commit you pushed. First
+use, on 15 September, took about four minutes end to end. **The hook is not
+"unusable" — it was only ever unusable from a shell**, and in two weeks nobody
+had tried it from a browser. The same route reaches anything else on
+`api.render.com`, so resetting and changing `TIME_MUL` are open too.
+
+`*.onrender.com` is not refused from the sandbox any more either, so the live
+world can be read directly with curl — which is how the tick rate, the machine
+count and the deployed commit can now be checked without asking anybody.
+
+`repose-keys.txt` holds the deploy hook, the reset key and the GitHub token.
+None of the three should ever be printed, and none should be copied into a
+clone.
 
 ## Hard-won lessons — please read these
 
