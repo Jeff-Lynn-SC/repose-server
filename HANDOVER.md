@@ -964,6 +964,21 @@ was right, because it was an alias for a buffer somebody else was using.
 Anything named after a thing and used later in the same loop wants its own
 storage — and if a value has to survive a few lines of arithmetic, copy it.
 
+**And then they were cubes.** Jeff, ten minutes later: *"ok. they are now
+just weird looking while cubes."* They were: two 18 cm cubes of
+`MeshBasicMaterial`, which takes no light at all, so they were a flat wash of
+near-white whatever the sun was doing. Worse, they were the *whole* lamp —
+their opacity is the night factor, so at midday a machine had nothing
+whatever where its lights should be.
+
+A work lamp is two things. A cast housing bolted to the roof, which is part
+of the machine, takes the sun like every other panel and is there at noon.
+And a lens across the front, which is the only part that lights up. So the
+housings joined `GEO_HOUSE` and `GEO_LAMPS` became the lens alone. The four
+numbers that say where a lamp is moved above the body, so the housing, the
+lens and the beam are all built from them — three things off one set of
+numbers instead of three opinions. `patch25.js`.
+
 ### Still wrong, and known
 
 * **The lamp's brightness is arbitrary.** Halving it looked identical because
