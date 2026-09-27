@@ -1076,6 +1076,123 @@ Page errors across ten director samples: none.
   light on flat ground and a shadow is already near as dark as it is allowed to
   get. Worth doing as one change, not three.
 
+## How much sky a thing can see — 27 September
+
+The second half of contact, and it turned out to be one question with a
+surprising answer.
+
+At midday `sun.intensity` is about 0.80 against `hemi` 0.85 plus rim and
+environment, so **the sun is only about two fifths of the light on level
+ground**. The other three fifths is sky, and it was being handed out in full
+to every point in the world — the floor of a dug pit, the inside of a wheel
+rut, the strip of sand under a bucket — exactly as though each of them had the
+whole dome overhead. That is why hollows read flat, and why turning the shadow
+up never helped: the missing darkness was never the sun's to give.
+
+### patch27 — the ground
+
+For every point of the terrain, the cosine-weighted fraction of the sky
+hemisphere that is open. Eight directions; along each, march out to 184 m and
+keep the steepest horizon. A horizon at angle *e* hides everything below it and
+the visible fraction of that slice is cos²(*e*), which with *t* as the tangent
+— what marching a heightfield hands you directly — is 1/(1+*t*²). No
+trigonometry anywhere in it.
+
+Six rows of the grid a frame, wrapping, whole field every thirty frames. It
+has to be the whole field rather than the changed cells, because digging one
+hole changes what a point two hundred metres away can see.
+
+It runs **on the page, not in the simulation**. The simulation is the world;
+how much sky you can see from a grain of it is a question about looking. That
+also keeps `sim.node.js` out of it entirely.
+
+Approximation worth naming: the hemisphere is taken about the vertical rather
+than about the surface normal. Ground never stands steeper than its angle of
+repose, so the error is small and doing it properly is expensive.
+
+It replaced a **fake**. `updateTerrain` was baking `ao=1-clamp(lap/CS*0.6,0,0.32)`
+from a one-cell Laplacian into the vertex **colour**. Two things wrong: it
+could see one cell, 5.6 m, so a pit wall twenty metres off meant nothing; and
+being in the colour it darkened **direct sunlight** too, which is not what
+occlusion does. A spot in full sun at the bottom of a pit is fully sunlit and
+starved only of sky.
+
+### And then the measurement said it does nothing
+
+Sky visibility across all 32,400 points: **0.997 to 1.000**. Every point sees
+essentially the whole dome. Correct, and it settles the question — the pit has
+about 3.6 m of relief across a whole kilometre, and four metres over a
+kilometre is a billiard table. A world run hard for five minutes did not move
+it. **The ground is not what blocks the sky here.**
+
+Kept anyway: it is right, it costs nothing measurable (390 ms/frame against
+390 for the page as it was, control run on the same number), and it wakes up on
+its own if the pit ever gets properly deep. But it did not change the picture
+and was not claimed to.
+
+### patch28 — the machines
+
+A machine is 2.7 m tall standing directly on the sand. Against 3.6 m spread
+over a kilometre it is the only thing in the piece big enough to take the dome
+away from anything — and the ground right under it is exactly where a machine
+looked pasted on.
+
+Each machine near the camera is offered to the sand as two spheres, body and
+bucket, and the sand works out how much of its sky each covers:
+nl·r²/d², the solid angle weighted by how squarely it sits against the
+surface's own hemisphere. Straight under the belly it saturates at one, which
+is right: from there there is no sky.
+
+**This is not a shadow, and that is the point.** The sun has the shadow map and
+always did. This is the sky — three fifths of the light at midday.
+
+Eight occluders, nearest the camera, ordered: the same machinery as the work
+lamps and for the same reason. Sand only. A machine's own sphere sits inside
+the machine, so feeding these to the machine's shader would have it occlude its
+own roof.
+
+### What it costs, and two failed attempts to get it back
+
+**9% of frame time**, measured three times against two control runs.
+
+Two ideas tried and both useless, both worth recording because neither was
+wrong in principle:
+
+* **One ball round all eight occluders**, so distant sand could skip the loop
+  in a single test. No use: four machines scattered over a square kilometre
+  make a ball that covers the whole view.
+* **Ignore machines further than twelve machine lengths from the camera.** Kept
+  — it is right and it costs nothing — but it bought nothing here, because
+  measuring `uOccN` showed all eight occluders active: in that shot all four
+  machines *are* close.
+
+The deeper reason the guards did not help: the test renderer has no graphics
+card, and a CPU renderer cannot skip a data-dependent `break` — it executes all
+eight iterations under a mask. **So 9% is a worst case, not a figure.** Real
+hardware should do better and the only way to know is Jeff's Mac.
+
+### Night, and what it revealed
+
+No change at night at all — correctly. There is almost no sky light at night to
+take away. What actually lights the sand then is the machines' own work lamps,
+and **the lamps cast no shadow whatsoever**: they are not three.js lights, they
+are arithmetic pasted into two shaders, and arithmetic does not know the
+machine's own body is in the way. At night a lamp shines straight through its
+own machine onto the sand behind it.
+
+That is the real night contact fault, it is nameable, and it is a separate job.
+
+### Still open
+
+* **The work lamps cast no shadows.** The night contact fault above.
+* **Machines do not shade each other, and a machine does not shade its own
+  underside.** Both want a shape other than a sphere.
+* **Wheels do not sink.** A track rests on the surface height under its centre;
+  soft sand is not modelled at all.
+* **The rim light is not scaled by sky visibility** though arguably it should
+  be — it stands in for sky off one side. It is one light inside three.js's own
+  direct-lighting sum and cannot be picked out without rewriting the chunk.
+
 ## What comes next: the look — 12 September
 
 Jeff, pausing on 12 September: *"I am now happy with the functional aspects. I
