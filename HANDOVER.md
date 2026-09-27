@@ -994,6 +994,88 @@ numbers instead of three opinions. `patch25.js`.
   device VM being reclaimed. Neither survives a job over about forty minutes;
   run it somewhere that does.
 
+## Contact — 27 September
+
+Where a machine meets the sand. Jeff picked this after the night was finished,
+and the complaint underneath it is that a machine looks *pasted onto* the sand
+rather than standing on it.
+
+Two faults, both in the shadow, both **measured off the running page** — and the
+measuring is the point, because reading the source gives the wrong answers.
+`boot()` sets the shadow box to `HALF*1.72` (1720 m across), and
+`measurePopulation()` resets it to `popR*1.5` floored at 30 machine lengths a
+second later. The second one is what runs. I told Jeff "the whole square
+kilometre, 84 cm of detail" off the source, and had to correct it to 359 m and
+17.5 cm off the page. **Read the source to find the code; run the page to find
+the numbers.**
+
+**`sun.shadow.normalBias` was `0.5*CS` — 2.79 m.** This is the one that
+mattered. A normal bias exists to stop a surface shadowing itself, and it is a
+property of *one dot of the shadow picture* — 17.5 cm — so 2.79 m is sixteen
+times too large, and taller than the machine it is meant to be keeping honest.
+Every shadow in the pit was being shoved nearly three metres off whatever cast
+it, so nothing could hold a shadow against its own feet. It is the recurring
+fault of this file exactly: a length scaled to something unrelated (`CS`, the
+simulation's cell) quietly meaning metres.
+
+**The box never moved with the camera.** 2048 dots over 359 m is 17.5 cm. A
+tyre is 56 cm — three dots. A bucket lip is one. Putting the camera close in
+bought nothing, and the director spends most of its time within twenty or
+thirty metres of a machine. `shadowFollow()` now sizes the box to the shot:
+96 m across when the camera is close (4.7 cm), widening again as it pulls back,
+clamped at the pit. Both biases come from one texel, so they move with it —
+7.5 cm close in, 25 cm over the pit.
+
+The box is **snapped to whole texels along the light's own axes**. Without
+that, every fraction of a dot the camera drifts redraws every shadow edge
+somewhere else and the whole pit crawls. That is why this is not simply "make
+the box smaller".
+
+### And the fault in the fix
+
+`patch26` was written, tested and about to be pushed before I found that
+`measurePopulation()` **also** sets the box, on every stats message from the
+worker. `shadowFollow` set it; the crowd routine put it back to 359 m a moment
+later; and the bias — still worked out from the box `shadowFollow` thought it
+had — was then too small for the box actually in use. The fix was working about
+a third as well as it claimed.
+
+I missed it because **the test drove the camera by hand, and `driveCamera`
+returns before the director's own work when `man.on` is true.** A manual-camera
+test does not exercise the path the live page runs. Ten samples with the
+director actually driving, through four shots, is what proved it out — and is
+what any change to the camera or the light needs from now on.
+
+`measurePopulation()` no longer touches the shadow at all; `shadowFollow` owns
+the box, the light's aim and the light's distance. `popX/popZ/popR` stay,
+because the camera uses them.
+
+Measured, close shot, sun 18° up:
+
+| | before | after |
+|---|---|---|
+| shadow box | 359 m, fixed | 96 m, follows the shot |
+| one shadow dot | 17.5 cm | 4.7 cm |
+| normal bias | 2.79 m | 7.5 cm |
+| far plane | 2250 m | 496 m |
+| darkest 5% of the frame | 110 | 98 |
+
+Page errors across ten director samples: none.
+
+### Still open on contact
+
+* **Wheels do not sink.** A track rests on the surface height under its centre;
+  soft sand is not modelled at all.
+* **Nothing darkens where a machine blocks the sky.** At night, with no sun,
+  this is the *only* contact shadow there could be, and there is none.
+* **Nothing in the piece knows how much sky any point can see.** A hollow, a
+  wheel rut, the gap under a bucket — all lit as though the whole sky poured
+  in. This is one gap behind three complaints: contact, the flat midday sand,
+  and how weak a shadow can be at all. At midday `sun.intensity` is ~0.80
+  against `hemi` ~0.85 plus rim and bounce, so the sun is only about 40% of the
+  light on flat ground and a shadow is already near as dark as it is allowed to
+  get. Worth doing as one change, not three.
+
 ## What comes next: the look — 12 September
 
 Jeff, pausing on 12 September: *"I am now happy with the functional aspects. I
