@@ -1453,6 +1453,129 @@ source to find the code, run the thing to find the numbers. `TIME_MUL` says
 2.4 and the server says 0.6. The comment said knocks kill machines and the
 stopwatch says they don't.
 
+## What a machine's life is spent on — 28 September, later
+
+Jeff, on being told machines were dying every forty-seven minutes: *"i never
+suggested that a dead bot results in a new bot. my vision was always that a bot
+is born for each new visitor. how quickly do they die? i would expect a digger
+to last years."*
+
+And then, on being offered a number for what collisions should cost: *"im a
+little uncomfortable about putting a figure on it. if two diggers collide (and
+i don't know why they would) then some damage is inflicted. can't that damage
+reflect reality? ... at every step, i want the whole world to be as realistic
+as possible rather than working to fixed numbers or orchestrating effects."*
+
+Both instincts were right and both changed the answer.
+
+### What was there
+
+```
+this.dmg+=_avKnock*dt*0.32;   /* contact is what wears them out */
+this.dmg+=dt*0.00035;         /* and ordinary use, slowly */
+```
+
+Measured: **a machine lived forty-seven minutes of world time, and they all
+died at the same age** — 45.3 to 47.6 minutes over twenty-four deaths. Ordinary
+use was **98%** of it; contact **2%**, and in a pit with two machines, nothing
+at all. The comment was the opposite of the truth.
+
+Three consequences, all of them bad:
+
+* **Nothing a machine did affected how long it lived.** No selection on
+  survival was possible, so every measurement in the section above this one was
+  measuring a stopwatch.
+* **The "least damaged" parent the pit chooses was simply the youngest machine
+  in it** — nothing to do with merit, placement or size.
+* **The pit was churning generations on a timer.** A death drops the population
+  below target and a replacement arrives two seconds later, which is where all
+  the random drift came from and which nobody ever asked for.
+
+### And contact is not collision
+
+Nothing in this piece models an impact. `avoid` pushes two machines apart when
+they are closer than they fit, and `_avKnock` is **how far they overlapped**,
+not how hard they hit — because nothing hits. Damage from it was a consequence
+with no cause.
+
+With the clock corrected it was measured again in a dense pit, a very dense pit
+and a roomy one: **0.00% in all three.** Any number put on it would have been
+invented and inert, which is the worst of both. It is gone.
+
+### What actually wears out a digger
+
+Work. Service life is quoted in **operating hours**, and the same machine is
+consumed far faster in rock than in loose material — a severe application
+roughly halves component life.
+
+Everything needed was already in the pit: what each machine cut on every pass,
+how hard the ground was (`rock`, already tracked), and when a machine is doing
+nothing.
+
+```
+duty = what it moved this step / what it is BUILT to move in that time
+rate = WEAR * (IDLE + (1-IDLE)*duty)
+and ground that has stopped being sand counts double
+```
+
+Three numbers, and only one of them is a choice:
+
+* `SERVICE_H = 12000` — a real machine, reckoned worth rebuilding about there,
+  and one of these never stops, so that is its whole life.
+* `IDLE = 0.22` — an idling engine burns about a fifth of a working one, and a
+  stopped machine is still running.
+* `ROCK_HARD = 1.0` — the severe-application figure: hard ground costs double.
+* `NORMAL_DUTY = 0.125` — **measured, not chosen.** A machine in an ordinary
+  pit averages an eighth: it spends most of its time driving to and from the
+  work rather than cutting. Two pits of different densities gave 0.123 and
+  0.125. So twelve thousand hours means twelve thousand hours of the work these
+  machines really do, not of a flat-out ideal they never reach.
+
+Dividing by the machine's own natural rate (`cap/digCycle`) is what stops a big
+machine being punished for being big: it moves more, but it is built for it, so
+per hour of its own work it lasts the same. Which is true of real machines.
+
+### What it produced
+
+| pit | lives, hours | in Jeff's years, at the server's real speed |
+|---|---|---|
+| 8 in 335 m | 7,667 · 10,622 · 12,548 · 13,133 · 13,383 · 13,588 · 14,708 · 14,906 | 1.5 – 2.8 |
+| 10 in 235 m (jammed) | 5,935 · 7,290 · 8,065 · 10,518 · 11,214 · 13,120 · 13,142 · 13,144 · 13,452 · 13,494 | 1.1 – 2.6 |
+
+Two sim-hours in a pit that used to produce sixteen births and sixteen deaths:
+**none at all.** Births are now what they were always meant to be — a machine
+for each new visitor.
+
+And **twice the difference between one machine's life and another's**, all of it
+earned. That is the first time anything in this piece has differed by what a
+machine did.
+
+### Three things that fell out rather than being arranged
+
+* **The harder you work, the sooner you die.** Flat out is under 6,000 hours;
+  gently is 15,000. And succeeding at your purpose is what gets your children
+  born (see patch32). So the thing that makes a machine successful is the thing
+  that kills it.
+* **A machine hemmed in and achieving nothing wears out more slowly.** It is
+  not spending itself. It simply gets nothing for the time.
+* **A crowded pit is harsher — but not for the reason predicted.** The guess
+  was that hemmed-in machines idle and last longer. Wrong (the fourth wrong
+  prediction of the day). In a tight pit everything is close, so machines spend
+  *less* time driving and more time cutting, and they wear out faster. Crowding
+  does not make you idle; it makes you work in a smaller space.
+
+Existing machines carry their damage through. One near the end of the old clock
+still dies shortly; the rest simply stop ageing in minutes. No mass die-off, no
+reprieve.
+
+### The standing lesson, again
+
+**Read the source to find the code; run the thing to find the numbers.** The
+comment said contact wears them out and the stopwatch said 2%. `TIME_MUL` says
+2.4 and the live server says 0.6. The start-up code sizes the shadow to the
+whole kilometre and `measurePopulation` resets it to 359 m a second later.
+Every one of those was found by measuring and none by reading.
+
 ## What comes next: the look — 12 September
 
 Jeff, pausing on 12 September: *"I am now happy with the functional aspects. I

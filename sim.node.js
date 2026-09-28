@@ -411,6 +411,24 @@ var CUT_MAX=0.70;                                 /* set in applyScale */
    second - not a stroke of seven seconds and a tip of four point six, which
    is what was here and what gave a bucket its speed. */
 var PASS=0.42, DRAG=0.60, ROLL=0.50;
+/* ---- what a machine's life is spent on ----
+   Work, not the clock. See patch34. SERVICE_H is the one real number in here:
+   a hydraulic excavator is reckoned worth rebuilding somewhere about twelve
+   thousand operating hours, and one of these never stops, so that is its
+   whole life. IDLE is the floor - an idling engine burns about a fifth of
+   what a working one does, and a machine standing still is still running.
+   ROCK_HARD is the industry's severe-application figure: ground that has been
+   worked until it is no longer sand costs double.
+   NORMAL_DUTY is measured, not chosen: it is what a machine in this pit
+   actually averages, so that twelve thousand hours means twelve thousand
+   hours of the work these machines really do. */
+var SERVICE_H=12000, IDLE=0.22, ROCK_HARD=1.0;
+/* Measured off the running simulation, not chosen: a machine in an ordinary
+   pit averages 0.125 - it spends most of its time driving to and from the
+   work rather than cutting, which is what these machines really do. Two pits
+   of different densities gave 0.123 and 0.125. */
+var NORMAL_DUTY=0.125;
+var WEAR=1/(SERVICE_H*3600*(IDLE+(1-IDLE)*NORMAL_DUTY));
 /* and the two angles of the bucket that matter: past the first it can no
    longer hold what is in it, and at the second there is nothing left. Those
    are facts about the shape of a bucket. */
@@ -459,6 +477,9 @@ function Machine(role,atGate,px,pz,size){
      a machine trying the same impossible shove over and over, without
      anybody writing down what an impossible shove is. */
   this.noPush=0; this.lifted=0; this.gotPass=0; this.slump=0;
+  /* sand moved since its life was last charged for, hard ground counted
+     double. See patch34. */
+  this.work=0;
   /* the cell its summit stands in, remembered rather than looked up */
   this.si=-1; this.preH=0;
   this.boom=CARRY_B; this.stick=CARRY_S; this.buck=CARRY_K; this.slew=0; this.stroke=rnd()*2;
@@ -982,6 +1003,9 @@ Machine.prototype.step=function(dt,self){
             var room=this.cap-this.load;
             var cut=takeFrom(tp.x,tp.z,0.55*CS,vol<room?vol:room);
             this.load+=cut; this.got+=cut;
+            /* what this cost the machine: the sand it moved, doubled where the
+               ground has stopped being sand. See patch34. */
+            this.work+=cut*(1+ROCK_HARD*rockAt(tp.x,tp.z));
             if(cut>0) this.digging=1;
           }
           /* and sand rolls off the ends of the blade the whole way along,
@@ -1162,6 +1186,7 @@ Machine.prototype.step=function(dt,self){
         var swept=BLADE_W*len*bite*travel/(CS*CS);    /* cubic metres, as a height */
         var cut=takeFrom(t.x,t.z,0.55*CS,swept<room?swept:room);
         this.load+=cut; this.got+=cut; this.gotPass+=cut;
+        this.work+=cut*(1+ROCK_HARD*rockAt(t.x,t.z));
         this.digging=cut>0?1:0;
         /* Dust is a veil over the work, not a substitute for it. */
         if(cut>0 && rnd()<7*dt*dustGate)
@@ -1302,8 +1327,19 @@ Machine.prototype.step=function(dt,self){
      knocks cost the machine itself. This is the only thing that decides
      how many the pit will hold. */
   this.crowd+=((_avCount>6?6:_avCount)/6-this.crowd)*dt*0.25;
-  this.dmg+=_avKnock*dt*0.32;            /* contact is what wears them out */
-  this.dmg+=dt*0.00035;                  /* and ordinary use, slowly */
+  /* ---- what this step cost it ----
+     The old two lines here charged a machine by the clock and called it
+     contact. Neither was true: the clock was 98% of it and nothing a machine
+     did changed how long it lived. A machine is now charged for the work it
+     has actually done - against the work it is BUILT to do in that time, so a
+     big machine is not punished for being big - with an idling engine's floor
+     underneath, because a machine standing still is still running. Hard ground
+     was already counted double where the work was recorded. See patch34. */
+  var able=this.cap/digCycle(this.cap,this.len,this.cut);   /* its own natural rate */
+  var duty=(able>0&&dt>0)?(this.work/dt)/able:0;
+  this.work=0;
+  if(duty>12) duty=12;                   /* nothing real is twelve times flat out */
+  this.dmg+=dt*WEAR*(IDLE+(1-IDLE)*duty);
 
   trackGround(this,dt);
 
@@ -1357,6 +1393,12 @@ function buildGrid(){
    presses ruts into it just by crossing it, and the spoil
    from a rut goes sideways into a berm: nothing leaves.
    --------------------------------------------------------- */
+/* how far the ground here has stopped being sand, 0 to 1. Digging it costs a
+   machine double at 1, which is the severe-application figure. See patch34. */
+function rockAt(wx,wz){
+  var i=cellAt(wx,wz);
+  return (i<0)?0:rock[i];
+}
 function cellAt(wx,wz){
   var gx=((wx+HALF)/CS)|0, gz=((wz+HALF)/CS)|0;
   if(gx<0||gz<0||gx>=N||gz>=N) return -1;
