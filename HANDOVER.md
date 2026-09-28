@@ -1246,8 +1246,9 @@ want anything falsified for effect."** So it stayed at 2%.
 Machines find their neighbours through a grid whose cell was `3.0*machLen`, and
 each checks only the nine cells around itself. Left on one shared number, a big
 machine's awareness radius grows past its own cell and **it stops noticing the
-machines standing beside it**. Being knocked about is the only thing that kills
-a machine here. Giants would not have become strong — the piece would simply
+machines standing beside it**. (This paragraph then said knocks are the only
+thing that kills a machine. THAT IS WRONG - see the CORRECTION below: it is 2%.
+The grid point stands regardless.) Giants would not have become strong — the piece would simply
 have stopped being able to see them getting hit. `GCELL` is now built from the
 longest machine in the pit.
 
@@ -1382,7 +1383,7 @@ and there are none anywhere else in this.
   and nobody knows whether it is pulled back. Two reasons to think it might be:
   a small raiser digs itself into a hole and cannot succeed, and success now
   breeds; a very big machine needs so much room it would spend its life
-  colliding, and collisions are the only thing that kills. **Start pits at 0.4
+  colliding. (Collisions are NOT what kills - see the CORRECTION below.) **Start pits at 0.4
   and 2.5 and find out.** This is the next thing.
 * Whether the mean drifts symmetrically or declines. Pooled ln-mean over eight
   worlds was −0.033 ± 0.021 — 1.6σ, not significant, but over years a hint like
@@ -1390,6 +1391,67 @@ and there are none anywhere else in this.
 * Machines' own shaders are not given the sky occluders, so a machine does not
   shade its own underside or its neighbours.
 * The work lamps still cast no shadow.
+
+### CORRECTION, same evening — what actually kills a machine
+
+**Everything above that says knocks are what kill a machine is wrong.** It is
+said in this section, in the commit message, and it was said to Jeff repeatedly
+over the course of the day. Measured, on 28 September:
+
+```
+pop 8, 3 sim-hours, 24 deaths
+  life: median 47.2 sim-min, mean 46.9, shortest 45.3, longest 47.6
+  damage: ordinary use 98%, knocks 2%
+pop 2, 3 sim-hours, 6 deaths
+  life: median 47.6 sim-min          damage: ordinary use 100%, knocks 0%
+```
+
+**A machine lives forty-seven minutes of world time, and they all die at the
+same age.** `this.dmg += dt*0.00035` — a flat clock, the same for every machine
+whatever it is doing — is 98% of what kills them. `_avKnock*dt*0.32` is 2%, and
+in an uncrowded pit it is nothing at all.
+
+**This invalidates every selection measurement in this section.** Nothing a
+machine does affects how long it lives, so nothing can be selected for
+survival. And the parent chosen as "least damaged" is simply **the youngest
+machine in the pit** — not the most successful, not the best placed, just the
+most recently born. The whole day's work was measuring a stopwatch.
+
+The "luck beats merit eight to one" figure is therefore not a fact about small
+populations. It is a fact about one wear rate.
+
+Jeff, on being told: *"i never suggested that a dead bot results in a new bot.
+my vision was always that a bot is born for each new visitor. how quickly do
+they die? i would expect a digger to last years."*
+
+He is right, and the fix is one number. For a digger to last five years of
+world time that clock has to run about 130,000 times slower. What follows from
+it is everything that was wanted:
+
+* nearly every birth becomes a **new visitor's**, as intended, with no
+  replacement churn;
+* with no churn there is almost no random turnover, so the drift that swamped
+  everything today largely disappears;
+* and **knocks become what actually kills**, which is what the rest of this
+  section wrongly assumed — at which point being big, being hemmed in, or being
+  badly placed genuinely decides who lasts, and every new machine is born from
+  a parent that earned it.
+
+### And the live world's real numbers
+
+Read off the running server rather than assumed: `speed` is **0.6**, not the
+2.4 in `TIME_MUL` — the free-tier instance has throttled itself. And the pit
+holds **13 machines** for 13 visitors ever.
+
+So the drift figure given above is wrong too. Recomputed at the live speed and
+population: about **a factor of 2.4 a year**, not nine. Still worth watching
+over years; nothing like as wild. And if the wear clock is fixed it becomes
+smaller again.
+
+**The lesson, and it is the same one as the shadow and the sky:** read the
+source to find the code, run the thing to find the numbers. `TIME_MUL` says
+2.4 and the server says 0.6. The comment said knocks kill machines and the
+stopwatch says they don't.
 
 ## What comes next: the look — 12 September
 
