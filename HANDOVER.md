@@ -1193,6 +1193,204 @@ That is the real night contact fault, it is nameable, and it is a separate job.
   be — it stands in for sky off one side. It is one light inside three.js's own
   direct-lighting sum and cannot be picked out without rewriting the chunk.
 
+## Machines born unequal — 28 September
+
+Jeff's own idea, raised weeks ago: *"in life my chances of economic success are
+higher if my parents are lawyers and business people than if they are cleaners;
+I will have a better chance of being a world class basketball player if they are
+both over two metres. These are advantages and disadvantages built in at birth."*
+
+### Half of it was already here
+
+A machine is not delivered to the pit. It appears two to six machine lengths
+from a parent, on whatever ground that parent has made, and takes its purpose
+from that parent and its nearest neighbour — and the parent is chosen by
+sampling six and keeping the least damaged and least hemmed-in. The piece
+already bred from success and already handed down a place to stand. **What it
+did not hand down was a body.**
+
+### The audit, which is why this was a fortnight and not a rewrite
+
+Forty-seven uses of `machLen` in the simulation. **Forty of them already meant
+THIS MACHINE'S OWN LENGTH.** Only six meant the world's unit. Nobody planned
+that; the file simply happened to be written as though machines could differ,
+and they were all handed the same number.
+
+Left on the world's unit deliberately: `reliefScan`, which measures the shape of
+the ground when a machine goes looking for work — a hollow is the shape it is
+whoever is standing in it — and `popR`/`frontier`, which are about where the
+population is, not about any one machine.
+
+### One number, and everything follows
+
+```
+len = machLen * size       a length
+cut = CUT_MAX * size       a depth, so a length
+cap = BUCKET  * size^3     a volume
+```
+
+Nothing else is set. Blade width, pass length, dig ring, where the teeth are,
+what counts as arrived, the size of its dust — all were already written in
+machine lengths.
+
+A child is the average of its two parents times `(1+(rnd+rnd+rnd-1.5)*0.04)`:
+three draws rather than one, because one flat draw makes runts and giants as
+likely as ordinary children. Spread ≈ 2%. **No floor and no ceiling anywhere.**
+
+Jeff, asked and answered: *"closely — slow drift"*, and later, when told the
+consequence was that machines would be visually indistinguishable: **"i don't
+want anything falsified for effect."** So it stayed at 2%.
+
+### The trap that would have ruined it quietly
+
+Machines find their neighbours through a grid whose cell was `3.0*machLen`, and
+each checks only the nine cells around itself. Left on one shared number, a big
+machine's awareness radius grows past its own cell and **it stops noticing the
+machines standing beside it**. Being knocked about is the only thing that kills
+a machine here. Giants would not have become strong — the piece would simply
+have stopped being able to see them getting hit. `GCELL` is now built from the
+longest machine in the pit.
+
+### Room, and who gives way (patch31)
+
+Room between two machines is the average of their lengths, not one number. How
+far each sees is its own length. **Who gives way is mass**, which goes as the
+cube: each machine runs `avoid` for itself, so the share is the other's mass
+over the two together, written as `2*share` so two equal machines get exactly
+what they got before and only the asymmetry is new. Being knocked about is
+scaled the same way — the shove IS the impact.
+
+### Success breeds (patch32)
+
+Jeff: *"for a raiser, height is its measure of success."* It was a measure of
+nothing: the pit chose parents on damage and crowding alone, so a raiser on the
+highest hill had the same chance of a child as one standing in a hole it had
+dug itself.
+
+A machine's **standing** is the ground it is answerable for, against the pit's
+average, in the direction its purpose wants it moved. A raiser: its summit
+above the mean. A filler: how far the hollow it is filling still lies below the
+mean — negative until filled, nought when done.
+
+**Each is judged against others doing the same job.** A raiser's standing can be
+positive and a filler's cannot, so comparing them directly would have bred
+fillers out of the pit entirely and handed the balance of purposes to this
+function instead of to the era. That one line is the difference between this
+working and deleting half the piece.
+
+Weight: one machine length — a standing is a length, and the length in this
+world is a machine.
+
+### What was measured, and what it cost me to learn it
+
+**Three predictions, three wrong.** Recorded because the pattern is the lesson.
+
+1. *"+3.1% in one hour, size is being selected upward, hard."* One hour, eight
+   births. Twenty hours said nothing at all. **Read off one sample.**
+2. *"Being big only pays when there is room."* Roomy pit, normal pit, crowded
+   pit: no difference.
+3. *"Height goes as the cube root of effort, so the advantage will be mild."*
+   It is much stronger than that — see below.
+
+**One raiser alone, immortal, four hours, four worlds each.** Where its own
+summit ended, against the ground around it:
+
+| size | four worlds | mean |
+|---|---|---|
+| 0.7 | −4.03, −1.25, +0.16, +0.97 | **−1.04 m** |
+| 1.0 | +0.48, +0.84, +1.47, +1.74 | **+1.13 m** |
+| 1.4 | +1.74, +2.05, +2.58, +2.82 | **+2.30 m** |
+
+Not one small machine matched the worst big one. And **half the time a small
+raiser ends the day standing lower than the ground around it** — it digs in a
+ring that cannot be tighter than a couple of its own lengths, which for a small
+machine is inside the slope of its own hill, so everything it lifts runs back
+into the hole it came from. It carries the same sand up and back all day. A big
+machine physically cannot stand that close and so cannot make the mistake.
+
+Tallest thing anywhere in the pit after four hours: 1.68 m (small), 1.88 m
+(normal) — roughly what the dunes already were, so neither built anything —
+against **4.19 m** (big).
+
+**But in a real pit, size is not selected at all.** Eight worlds, 960 births and
+960 deaths, before and after success-breeds, roomy and crowded:
+
+- selection moves the mean size **0.09% per generation**
+- chance moves it **0.71% per generation**
+
+**Luck beats merit about eight to one.** That is not a flaw; it is small-
+population arithmetic, and it is one of the firmest things in biology. Four
+identical worlds ended at 0.71, 0.95, 1.03 and 1.21.
+
+### Where that goes, on Jeff's timescale
+
+He is thinking in years. sd of ln(size) ≈ 0.060 per 15 sim-hours; world time
+runs ≈2.4× real time; drift compounds with the square root:
+
+- **a month:** typically half again today's size, or two thirds
+- **a year:** a factor of about nine, either way
+
+### And the thing that changes it
+
+`visitors` **only ever goes up** — it is the count of distinct people who have
+*ever* opened the page, not how many are looking now. `targetPop = visitors`.
+So the pit grows permanently, one machine per person who has ever seen it.
+
+Drift falls as 1/√N and the selection differential does not. They cross at
+**about five hundred machines.** So once five hundred people have ever looked at
+Repose, being good at the job starts to matter more than luck, and only gets
+truer after that. Nothing needs building. It is already how it works.
+
+(An earlier claim of mine — that the pit "breathes with its audience" — was
+wrong, and is corrected here.)
+
+### Births: not what it looks like
+
+Two things cause a birth. A new visitor causes one. **And so does every death:**
+the simulation begets a replacement about two seconds after the population falls
+below target. In the runs above there were no visitors at all and 152 births —
+every one a replacement. That churn is where all the inheritance happens.
+
+### The wire, and how two halves that deploy separately don't break each other
+
+The saved world (`packMachines`) went 28 fields to 29. Worlds saved under the
+old format already exist, so the array now begins with **−MFIELDS**: a role is
+0 or 1 and can never be negative, so a negative first number is unambiguously
+the new format and anything else is read at 28 with every machine size 1.
+
+The worker's snapshot went 12 floats a machine to 13. **The page no longer
+assumes the stride** — it works it out from the length of what it was handed.
+
+The server's binary packet went 17 bytes a machine to 19, and this one had to be
+safe in both directions because page and server go live at different moments,
+and a one-byte error puts every machine position and every height after it out
+of step. So neither guesses: **the page asks** with `m=2` (an old server ignores
+it), and **the page then checks the packet's own length** against the two
+possible sizes, which it can compute exactly because machine count and changed-
+cell count are both in the header. Neither match → the packet is dropped.
+Verified end to end against a real server: no flag → 17, `m=2` → 19, sizes
+decoded correctly, zero page errors.
+
+Size on the wire is a logarithm, `2^((u-32768)/4096)`: ±8 octaves at better than
+a fiftieth of a percent. A linear byte would have needed a floor and a ceiling,
+and there are none anywhere else in this.
+
+### Still open
+
+* **What happens at the extremes.** Everything above was measured near size 1,
+  where the forces cancel. Over years the pit will drift a long way from there,
+  and nobody knows whether it is pulled back. Two reasons to think it might be:
+  a small raiser digs itself into a hole and cannot succeed, and success now
+  breeds; a very big machine needs so much room it would spend its life
+  colliding, and collisions are the only thing that kills. **Start pits at 0.4
+  and 2.5 and find out.** This is the next thing.
+* Whether the mean drifts symmetrically or declines. Pooled ln-mean over eight
+  worlds was −0.033 ± 0.021 — 1.6σ, not significant, but over years a hint like
+  that matters enormously.
+* Machines' own shaders are not given the sky occluders, so a machine does not
+  shade its own underside or its neighbours.
+* The work lamps still cast no shadow.
+
 ## What comes next: the look — 12 September
 
 Jeff, pausing on 12 September: *"I am now happy with the functional aspects. I

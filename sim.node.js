@@ -428,8 +428,17 @@ var RAISE=0, FILL=1;
 var COL_A=[1.55,.62,.22], COL_B=[.30,1.25,1.15], COL_N=[1,1,1];
 
 var gateX=0, gateZ=0, spreadR=1;
-function Machine(role,atGate,px,pz){
+function Machine(role,atGate,px,pz,size){
   this.role=role; this.dmg=0; this.crowd=0;
+  /* ---- the one number it is born with ----
+     Everything physical about this machine follows from it and nothing else
+     is chosen. len is a length, cut is a depth so also a length, and cap is
+     a volume so it goes as the cube. A machine made with no size given is
+     the size the world was built at, which is what the first one in an empty
+     pit gets. See patch29. */
+  this.size=(size>0)?size:1;
+  this.len=machLen*this.size;
+  this.cut=CUT_MAX*this.size;
   if(px!==undefined){ this.x=px; this.z=pz; }
   else if(atGate){
     var ga=rnd()*6.2832, gr=Math.sqrt(rnd())*spreadR;
@@ -442,7 +451,9 @@ function Machine(role,atGate,px,pz){
      which changes its mind later cannot end up steering at nothing */
   this.ring=rnd()*6.2832; this.sx=this.x; this.sz=this.z;
   this.ang=rnd()*Math.PI*2;
-  this.load=0; this.got=0; this.idle=0; this.cap=BUCKET/(CS*CS); this.state="go"; this.mode="scoop"; this.flash=0;
+  this.load=0; this.got=0; this.idle=0;
+  this.cap=BUCKET*this.size*this.size*this.size/(CS*CS);
+  this.state="go"; this.mode="scoop"; this.flash=0;
   /* set when a push ended having moved next to nothing - the ground beat
      it - and cleared again by the next bucket that arrives whole. It stops
      a machine trying the same impossible shove over and over, without
@@ -472,6 +483,7 @@ function Machine(role,atGate,px,pz){
    five metres when a cell was 87 cm and is thirty-three now — far enough
    that at a real driving speed the machine spent its day travelling. */
 Machine.prototype.pickScoop=function(){
+  var len=this.len, cut=this.cut;   /* this machine's own, not the world's. patch29 */
   var Hs=hAt(this.sx,this.sz);
   /* the floor of the last cut, which has to be remembered: by the time this
      runs, tx has been moved to the summit to tip at and reading it there
@@ -479,7 +491,7 @@ Machine.prototype.pickScoop=function(){
   var Hd=(this.dgx===undefined)?meanH:hAt(this.dgx,this.dgz);
   var drop=Hs-Hd;
   var cone=(drop>0)?drop/Math.tan(reposeDeg*Math.PI/180):0;
-  var R=Math.max(2.2*machLen,Math.min(HALF*0.45,cone));
+  var R=Math.max(2.2*len,Math.min(HALF*0.45,cone));
   var lim=HALF-2*CS;
   /* Two rings, not one. The first is the old one - as far out as the sand
      runs back, which is the distance that stops a machine moving the same
@@ -489,7 +501,7 @@ Machine.prototype.pickScoop=function(){
      raiser on flat ground goes out far enough to shove a full blade home,
      and one on a mound that has grown steep finds the far ring worthless
      and comes back to digging. Nobody wrote the changeover. */
-  var fillR=this.cap*CS*CS/(BLADE_W*machLen*CUT_MAX*traction(0,0.5));
+  var fillR=this.cap*CS*CS/(BLADE_W*len*cut*traction(0,0.5));
   var bR=R, bRate=-1, bPush=false;
   for(var c=0;c<2;c++){
     var rr=c?Math.max(R,Math.min(HALF*0.45,fillR)):R;
@@ -507,10 +519,11 @@ Machine.prototype.pickScoop=function(){
   this.state="go"; this.mode=bPush?"toPush":"scoop";
 };
 Machine.prototype.relocate=function(){
+  var len=this.len, cut=this.cut;   /* this machine's own, not the world's. patch29 */
   var bx=0,bz=0,bh=-1e9;
   /* most look for somewhere near by; the few that strike out are how a
      population ends up somewhere it has not been */
-  var R=(rnd()<0.02)?frontier():(6+this.crowd*16)*machLen;  /* the hemmed-in look further */
+  var R=(rnd()<0.02)?frontier():(6+this.crowd*16)*len;  /* the hemmed-in look further */
   for(var k=0;k<10;k++){
     var ax=Math.max(-HALF+2*CS,Math.min(HALF-2*CS,popX+(rnd()*2-1)*R));
     var az=Math.max(-HALF+2*CS,Math.min(HALF-2*CS,popZ+(rnd()*2-1)*R));
@@ -620,12 +633,16 @@ function reliefAt(x,z){ return reliefScan(x,z).d; }
    Dig in ground that gives nothing and the passes still cost their time,
    which is how digging in rock comes to be expensive without anybody saying
    that it should be. */
-function perPass(){ return BLADE_W*machLen*CUT_MAX*(PASS*machLen)/(CS*CS); }
+function perPass(len,cut){ return BLADE_W*len*cut*(PASS*len)/(CS*CS); }
 function tipTime(){ return (0.30-EMPTY_AT)/(ROLL*rateMul); }
-function digCycle(cap){
-  var v=perPass();
+function digCycle(cap,len,cut){
+  var v=perPass(len,cut);
   var passes=(v>0)?Math.max(1,cap/v):1;
-  return passes*(PASS*machLen/(DRAG*rateMul))+tipTime();
+  /* the passes come out the same number whatever size the machine is - the
+     bucket and the pass both go as the cube - but each one is longer, and
+     DRAG is 0.60 m/s for everybody. Which is where the cost of being big
+     comes from, and it was already written here. */
+  return passes*(PASS*len/(DRAG*rateMul))+tipTime();
 }
 
 /* What a job is worth, in sand moved per second, by whichever of the two
@@ -644,22 +661,23 @@ function digCycle(cap){
    Nobody chose them and changing the angle of repose changes them. */
 var _rk={rate:0,push:false};
 Machine.prototype.reckon=function(ux,uz,hx,hz,gain){
+  var len=this.len, cut=this.cut;   /* this machine's own, not the world's. patch29 */
   var ax=ux-this.x, az=uz-this.z, d1=Math.sqrt(ax*ax+az*az);
   var bx=hx-ux, bz=hz-uz, d2=Math.sqrt(bx*bx+bz*bz);
-  var cyc=digCycle(this.cap);                  /* a dig and a tip */
+  var cyc=digCycle(this.cap,len,cut);                  /* a dig and a tip */
   var climb=(d2>1e-6)?(hAt(hx,hz)-hAt(ux,uz))/d2:0;
   var g0=traction(climb,0), gb=traction(-climb,0), gp=traction(climb,0.5);
   var app=d1/DRIVE;
   var tOut=(g0>0.02)?d2/(DRIVE*g0):1e9, tBack=(gb>0.02)?d2/(DRIVE*gb):1e9;
   var rc=gain/(app+cyc+tOut+tBack), rp=0;
-  if(!this.noPush && d2>=1.2*machLen && gp>0.02){
+  if(!this.noPush && d2>=1.2*len && gp>0.02){
     /* A push does not arrive with a bucketful because it was asked to. It
        arrives with whatever the blade gathered on the way, which is its
        width times how deep it could afford to cut times how far it ran -
        and a short shove therefore turns up half empty. Reckoning on a full
        blade was the one dishonest number in here, and it made the machine
        choose twelve-metre shoves that gathered two thirds of a load. */
-    var fill=BLADE_W*machLen*CUT_MAX*gp*d2/(CS*CS);
+    var fill=BLADE_W*len*cut*gp*d2/(CS*CS);
     var frac=fill/this.cap; if(frac>1) frac=1;
     rp=gain*frac*Math.exp(-PUSH_SPILL*d2)/(app+d2/(DRIVE*gp)+tBack);
   }
@@ -679,6 +697,7 @@ Machine.prototype.reckon=function(ux,uz,hx,hz,gain){
    pushing sand up a mound it is itself making will cross this line without
    ever being told the mound got steep. */
 Machine.prototype.stillWorthShoving=function(){
+  var len=this.len, cut=this.cut;   /* this machine's own, not the world's. patch29 */
   var dx=this.tx-this.x, dz=this.tz-this.z, d=Math.sqrt(dx*dx+dz*dz);
   if(d<1e-6) return false;
   var climb=(hAt(this.tx,this.tz)-hAt(this.x,this.z))/d;
@@ -694,7 +713,7 @@ Machine.prototype.stillWorthShoving=function(){
      the short haul into a hollow. And on a bank the cut thins to nothing,
      so there is nothing left to gather and it lifts early. */
   var room=this.cap-this.load;
-  var more=BLADE_W*machLen*CUT_MAX*gp*d/(CS*CS); if(more>room) more=room;
+  var more=BLADE_W*len*cut*gp*d/(CS*CS); if(more>room) more=room;
   var rPush=(this.load+more)*Math.exp(-PUSH_SPILL*d)/(d/(DRIVE*gp));
   var rLift=this.load/(d/(DRIVE*gc)+tipTime());        /* the drive, and the tip */
   return rPush>rLift;
@@ -706,6 +725,7 @@ Machine.prototype.jobPays=function(){
   return rh<0 && (reliefAt(this.ux,this.uz)-rh)>0;
 };
 Machine.prototype.newJob=function(){
+  var len=this.len, cut=this.cut;   /* this machine's own, not the world's. patch29 */
   var lim=HALF-2*CS;
   var best=-1,bhx=null,bhz=null,bux=null,buz=null,bpush=false;
   for(var k=0;k<28;k++){
@@ -721,7 +741,7 @@ Machine.prototype.newJob=function(){
        and it is long deleted: ground lying below what surrounds it is
        exactly what a hollow is, so relief already refuses what the rule
        refused. */
-    var R=(rnd()<0.03)?frontier():(3+this.crowd*12)*machLen*(0.5+rnd()*rnd()*6);
+    var R=(rnd()<0.03)?frontier():(3+this.crowd*12)*len*(0.5+rnd()*rnd()*6);
     var fillx=this.x+(rnd()*2-1)*R, fillz=this.z+(rnd()*2-1)*R;
     if(fillx<-lim||fillx>lim||fillz<-lim||fillz>lim) continue;
     var iF=cellAt(fillx,fillz); if(iF<0) continue;
@@ -820,8 +840,8 @@ function toothWorld(a){
   var cs=Math.cos(a.slew), sn=Math.sin(a.slew);
   var lx=px*cs+P_BOOMZ*sn, lz=-px*sn+P_BOOMZ*cs;
   var ca=Math.cos(a.ang), sa=Math.sin(a.ang);
-  _tw.x=a.x+machLen*(lx*ca-lz*sa);
-  _tw.z=a.z+machLen*(lx*sa+lz*ca);
+  _tw.x=a.x+a.len*(lx*ca-lz*sa);
+  _tw.z=a.z+a.len*(lx*sa+lz*ca);
   _tw.y=py;
   return _tw;
 }
@@ -885,8 +905,9 @@ var CARRY_B,CARRY_S,CARRY_K;
    are, which is a tick behind where they have been asked to be, because
    hydraulics are not quick. */
 Machine.prototype.bladePose=function(here,depth,roll){
+  var len=this.len, cut=this.cut;   /* this machine's own, not the world's. patch29 */
   var t=toothWorld(this), gA=hAt(t.x,t.z);
-  var ty=(gA-here-depth)/machLen;
+  var ty=(gA-here-depth)/len;
   var k=armTo(0.85-P_BOOMX-(TOOTH_X*Math.cos(roll)-TOOTH_Y*Math.sin(roll)),
               ty-P_BOOMY-(TOOTH_X*Math.sin(roll)+TOOTH_Y*Math.cos(roll)));
   this.tbA=k.b; this.tsA=k.s; this.tkA=roll-k.b;
@@ -894,10 +915,11 @@ Machine.prototype.bladePose=function(here,depth,roll){
 };
 
 Machine.prototype.step=function(dt,self){
+  var len=this.len, cut=this.cut;   /* this machine's own, not the world's. patch29 */
   avoid(this,self);
   var here=hAt(this.x,this.z);
   var dx=this.tx-this.x, dz=this.tz-this.z, dist=Math.sqrt(dx*dx+dz*dz);
-  var arrive=Math.max(1.20*machLen,1.2*CS);
+  var arrive=Math.max(1.20*len,1.2*CS);
 
   if(this.state==="go"){
     if(dist<arrive){
@@ -943,7 +965,7 @@ Machine.prototype.step=function(dt,self){
          nothing at all while shoving a full one up a bank, and thins its
          own cut away as it fills - which is what the shallow scrape behind
          a dozing machine actually is. */
-      var cutD=pushing?CUT_MAX*gf:0;
+      var cutD=pushing?cut*gf:0;
       var sp=DRIVE*gf*_avBrake*dt;
       this.x+=Math.cos(this.ang)*sp; this.z+=Math.sin(this.ang)*sp;
       this.moving=sp/dt;
@@ -951,12 +973,12 @@ Machine.prototype.step=function(dt,self){
         var tp=this.bladePose(here,cutD,-0.12);
         var gA=hAt(tp.x,tp.z);
         this.digging=0; this.tipping=0; this.slewT=0;
-        if(sp>0 && tp.y*machLen+here<=gA+0.06*machLen){
+        if(sp>0 && tp.y*len+here<=gA+0.06*len){
           if(cutD>0){
             /* width times depth times how far it went, which is cubic
                metres, which becomes a height on a cell the same way a
                bucket does */
-            var vol=BLADE_W*machLen*cutD*sp/(CS*CS);
+            var vol=BLADE_W*len*cutD*sp/(CS*CS);
             var room=this.cap-this.load;
             var cut=takeFrom(tp.x,tp.z,0.55*CS,vol<room?vol:room);
             this.load+=cut; this.got+=cut;
@@ -969,8 +991,8 @@ Machine.prototype.step=function(dt,self){
             if(lost>0) this.load-=giveTo(tp.x,tp.z,0.75*CS,lost);
           }
           if(rnd()<9*dt*dustGate)
-            puff(tp.x,gA+0.04*machLen,tp.z,(rnd()-0.5)*0.6*CS,0.14*CS,(rnd()-0.5)*0.6*CS,
-                 0.14*machLen,0.66*machLen,1.0+rnd()*0.7,0.12);
+            puff(tp.x,gA+0.04*len,tp.z,(rnd()-0.5)*0.6*CS,0.14*CS,(rnd()-0.5)*0.6*CS,
+                 0.14*len,0.66*len,1.0+rnd()*0.7,0.12);
         }
         /* and every second it asks whether shoving is still the way */
         this.stroke+=dt;
@@ -1028,10 +1050,10 @@ Machine.prototype.step=function(dt,self){
       this.load-=giveTo(ts.x,ts.z,0.7*CS,this.load-skeep);
       this.tipping=1;
       if(rnd()<50*dt*dustGate){
-        var acr=(rnd()-0.5)*0.6*machLen;
-        puff(ts.x-Math.sin(this.ang)*acr, ts.y*machLen+here, ts.z+Math.cos(this.ang)*acr,
+        var acr=(rnd()-0.5)*0.6*len;
+        puff(ts.x-Math.sin(this.ang)*acr, ts.y*len+here, ts.z+Math.cos(this.ang)*acr,
              (rnd()-0.5)*0.05*CS, -(0.7+rnd()*0.4)*CS, (rnd()-0.5)*0.05*CS,
-             0.030*machLen, 0.10*machLen, 0.45+rnd()*0.3, 0.42);
+             0.030*len, 0.10*len, 0.45+rnd()*0.3, 0.42);
       }
     } else this.tipping=0;
     if(this.load<=0){
@@ -1042,7 +1064,7 @@ Machine.prototype.step=function(dt,self){
       /* the same test the dig uses: it either gathered something worth
          having or the ground beat it. A shove that ends with a blade the
          machine could have lifted is a shove that worked. */
-      this.noPush = this.got<perPass() ? 1 : 0;
+      this.noPush = this.got<perPass(len,cut) ? 1 : 0;
       this.got=0;
       if(this.role===RAISE){ this.ring+=0.9+rnd()*0.5; this.pickScoop(); }
       else if(this.jobPays()){ this.mode="scoop"; this.tx=this.ux; this.tz=this.uz; this.state="go"; }
@@ -1068,7 +1090,7 @@ Machine.prototype.step=function(dt,self){
       this.tbA=CARRY_B; this.tsA=CARRY_S; this.tkA=CARRY_K;
       this.digging=0; this.tipping=0;
     }else{
-    var reach=dist/machLen;
+    var reach=dist/len;
     if(reach<0.85) reach=0.85; else if(reach>1.50) reach=1.50;
 
     var t=toothWorld(this);
@@ -1107,13 +1129,13 @@ Machine.prototype.step=function(dt,self){
          depth, and the same depth whether it is dragging it through a face
          or shoving it along the deck - one number for both, where there
          used to be a curve here and a ceiling over there. */
-      var bite=CUT_MAX;
+      var bite=cut;
       /* Aim the teeth, not the bucket pivot. armTo places the pivot; the
          teeth hang off the bucket a quarter of a length out and a fifth
          down, and which way that points depends on how far the bucket has
          curled. Solve once, see where the teeth actually landed, take that
          off, solve again. */
-      var ty=(groundAt-here-bite)/machLen;
+      var ty=(groundAt-here-bite)/len;
       /* A loading bucket does not curl under like a backhoe's. It goes in
          nose down and rolls back as it fills, which keeps the cutting edge
          the lowest part of the machine throughout. */
@@ -1134,17 +1156,17 @@ Machine.prototype.step=function(dt,self){
          to tell it so. This is the same fault as the sixteen-minute filler,
          arrived at from the opposite direction. */
       var travel=this.idle?0:DRAG*rateMul*dt;             /* metres of teeth dragged */
-      this.stroke+=travel/(PASS*machLen);
-      if(travel>0 && t.y*machLen+here <= groundAt+0.06*machLen){
+      this.stroke+=travel/(PASS*len);
+      if(travel>0 && t.y*len+here <= groundAt+0.06*len){
         var room=this.cap-this.load;
-        var swept=BLADE_W*machLen*bite*travel/(CS*CS);    /* cubic metres, as a height */
+        var swept=BLADE_W*len*bite*travel/(CS*CS);    /* cubic metres, as a height */
         var cut=takeFrom(t.x,t.z,0.55*CS,swept<room?swept:room);
         this.load+=cut; this.got+=cut; this.gotPass+=cut;
         this.digging=cut>0?1:0;
         /* Dust is a veil over the work, not a substitute for it. */
         if(cut>0 && rnd()<7*dt*dustGate)
-          puff(t.x,groundAt+0.05*machLen,t.z,(rnd()-0.5)*0.5*CS,0.18*CS,(rnd()-0.5)*0.5*CS,
-               0.13*machLen,0.62*machLen,1.1+rnd()*0.8,0.13);
+          puff(t.x,groundAt+0.05*len,t.z,(rnd()-0.5)*0.5*CS,0.18*CS,(rnd()-0.5)*0.5*CS,
+               0.13*len,0.62*len,1.1+rnd()*0.8,0.13);
       } else this.digging=0;
 
       if(this.load>=this.cap){
@@ -1181,7 +1203,7 @@ Machine.prototype.step=function(dt,self){
          nor the two-per-cent-of-a-cell that used to end this exist. */
       this.stroke+=ROLL*rateMul*dt;                 /* radians rolled */
       var roll=0.30-this.stroke; if(roll<EMPTY_AT) roll=EMPTY_AT;
-      var ty2=(groundAt-here)/machLen+0.62;
+      var ty2=(groundAt-here)/len+0.62;
       var k2=armTo(reach-P_BOOMX,ty2-P_BOOMY);
       this.tbA=k2.b; this.tsA=k2.s; this.tkA=roll-k2.b;
       /* what a bucket at this angle will still hold */
@@ -1209,11 +1231,11 @@ Machine.prototype.step=function(dt,self){
         if(nG>6) nG=6;
         if(nG<1 && rnd()<rate) nG=1;
         for(var gI=0;gI<nG;gI++){
-          var fy=t.y*machLen+here;
-          var across=(rnd()-0.5)*0.52*machLen;
+          var fy=t.y*len+here;
+          var across=(rnd()-0.5)*0.52*len;
           puff(t.x-Math.sin(this.ang)*across, fy, t.z+Math.cos(this.ang)*across,
                (rnd()-0.5)*0.04*CS, -(1.10+rnd()*0.50)*CS, (rnd()-0.5)*0.04*CS,
-               0.022*machLen, 0.070*machLen, 0.34+rnd()*0.24, 0.55);
+               0.022*len, 0.070*len, 0.34+rnd()*0.24, 0.55);
         }
       } else this.tipping=0;
       if(this.load<=0){
@@ -1308,7 +1330,14 @@ function densAt(x,z){
   return gCount[cz*GW+cx];
 }
 function buildGrid(){
-  GCELL=Math.max(CS*0.5, 3.0*machLen);
+  /* THE LONGEST machine, not the world's unit. Every machine checks only the
+     nine cells around itself, so a cell smaller than the biggest machine's
+     reach means that machine stops seeing the ones beside it - and being
+     knocked about is the only thing that kills a machine here. Giants would
+     have gone immortal without ever being strong. See patch29. */
+  var _gml=machLen;
+  for(var _gi=0;_gi<machines.length;_gi++) if(machines[_gi].len>_gml) _gml=machines[_gi].len;
+  GCELL=Math.max(CS*0.5, 3.0*_gml);
   GW=Math.max(1,Math.ceil(HALF*2/GCELL)+1);
   var n=GW*GW;
   if(!gHead||gHead.length!==n){ gHead=new Int32Array(n); gCount=new Int32Array(n); }
@@ -1336,7 +1365,7 @@ function cellAt(wx,wz){
 function trackGround(a,dt){
   var ca=Math.cos(a.ang), sa=Math.sin(a.ang);
   var lx=-sa, lz=ca;                        /* across the machine */
-  var half=0.26*machLen;
+  var half=0.26*a.len;
   var press=(a.moving>0?1.0:0.25)*dt;
   for(var t=-1;t<=1;t+=2){
     var wx=a.x+lx*half*t, wz=a.z+lz*half*t;
@@ -1362,7 +1391,11 @@ function trackGround(a,dt){
 
 var _avX=0,_avZ=0,_avBrake=1,_avKnock=0,_avCount=0;
 function avoid(a,self){
-  var R=2.9*machLen, R2=R*R, minS=1.30*machLen;
+  /* as far as THIS machine is long, not the world's unit: a big machine is
+     aware of more, and is hemmed in sooner. See patch31. */
+  var R=2.9*a.len, R2=R*R;
+  /* how heavy it is. Same shape, so mass goes as the cube of the length. */
+  var ma=a.len*a.len*a.len;
   _avX=0; _avZ=0; _avBrake=1; _avKnock=0; _avCount=0;
   if(!gHead) return;
   var cx=((a.x+HALF)/GCELL)|0, cz=((a.z+HALF)/GCELL)|0;
@@ -1374,6 +1407,13 @@ function avoid(a,self){
       if(j===self) continue;
       var b=machines[j], dx=a.x-b.x, dz=a.z-b.z, d2=dx*dx+dz*dz;
       if(d2>R2||d2<1e-9) continue;
+      /* the room these two need is the sum of their half-widths, which for
+         one shape at two sizes is the average of their lengths */
+      var minS=1.30*(a.len+b.len)*0.5;
+      /* and who moves is mass: the other one's share of the two. Two equal
+         machines get 1.0 each, exactly what everybody got before. */
+      var mb=b.len*b.len*b.len;
+      var give=2*mb/(ma+mb);
       var d=Math.sqrt(d2), w=1-d/R, ux=dx/d, uz=dz/d;
       _avCount++;
       /* push apart, and always pass on the same side so two machines
@@ -1386,8 +1426,12 @@ function avoid(a,self){
         if(bk<_avBrake) _avBrake=bk;
       }
       if(d<minS){
-        var push=(minS-d)*0.75; a.x+=ux*push; a.z+=uz*push;
-        _avKnock+=(minS-d)/minS;          /* what it costs to be in the way */
+        /* the total the two of them give each other is unchanged - each
+           runs this for itself and the two shares add to two - but a small
+           machine meeting a big one is moved nearly all of it */
+        var push=(minS-d)*0.75*give; a.x+=ux*push; a.z+=uz*push;
+        /* and the shove is the impact: what moves you is what damages you */
+        _avKnock+=(minS-d)/minS*give;     /* what it costs to be in the way */
       }
     }
   }
@@ -1858,20 +1902,65 @@ function inheritRole(a,b){
   if(rnd()<0.04) p=1-p;                       /* the occasional oddity */
   return (rnd()<p)?FILL:RAISE;
 }
+/* ---- how well a machine is doing at the thing it exists for ----
+   The ground it is answerable for, against the pit's average, in the
+   direction its purpose wants it moved. See patch32. */
+function standing(m){
+  if(m.role===RAISE) return hAt(m.sx,m.sz)-meanH;
+  /* a filler is answerable for the hollow it is filling: below the average
+     until it has filled it, and nought once it has. Filling past the average
+     is not better, it is just somebody else's job. */
+  var hx=(m.hx===undefined)?m.x:m.hx, hz=(m.hz===undefined)?m.z:m.hz;
+  var d=hAt(hx,hz)-meanH;
+  return d<0?d:0;
+}
 function beget(){
   if(!machines.length){ machines.push(new Machine(newRole(),true)); births++; return; }
-  /* the parent is one that is not being knocked about: the frontier breeds */
+  /* The parent is one that is not being knocked about, is not hemmed in, and
+     HAS GOT SOMETHING DONE. The last of those is new: see patch32.
+
+     Each machine is set against the average standing of machines doing its
+     own job, because a raiser's standing can be positive and a filler's
+     cannot, and left unnormalised this would simply breed fillers out of the
+     pit. The weight is one machine length, which is the length this world is
+     built in: a hill a machine tall counts for as much as the difference
+     between a new machine and a finished one. */
+  var sumR=0, nR=0, sumF=0, nF=0, q;
+  for(q=0;q<machines.length;q++){
+    var mq=machines[q], st=standing(mq);
+    if(mq.role===RAISE){ sumR+=st; nR++; } else { sumF+=st; nF++; }
+  }
+  var muR=nR?sumR/nR:0, muF=nF?sumF/nF:0;
   var best=-1, bs=1e9;
   for(var k=0;k<6;k++){
     var i=(rnd()*machines.length)|0, m=machines[i];
-    var sc=m.dmg+m.crowd*0.6+rnd()*0.15;
+    var did=(standing(m)-(m.role===RAISE?muR:muF))/machLen;
+    var sc=m.dmg+m.crowd*0.6+rnd()*0.15-did;
     if(sc<bs){ bs=sc; best=i; }
   }
   var pa=machines[best], pb=nearestTo(pa,best);
-  var ang=rnd()*6.2832, r=(2.2+rnd()*3.4)*machLen;
+  /* it appears a few of ITS PARENT'S lengths away, so a big machine's child
+     starts further out - on the ground its parent has been working */
+  var ang=rnd()*6.2832, r=(2.2+rnd()*3.4)*pa.len;
   var px=Math.max(-HALF+2*CS,Math.min(HALF-2*CS,pa.x+Math.cos(ang)*r));
   var pz=Math.max(-HALF+2*CS,Math.min(HALF-2*CS,pa.z+Math.sin(ang)*r));
-  machines.push(new Machine(inheritRole(pa,pb),false,px,pz));
+  /* ---- what it inherits ----
+     The average of its two parents, and then a few percent either way. Three
+     draws added together rather than one, because one flat draw makes runts
+     and giants as likely as ordinary children and that is not how anything
+     is inherited; three gives the familiar bunched-up middle. The spread is
+     two percent, which is slow: a hundred generations of pure chance would
+     wander about twenty percent. Anything faster than that is the population
+     being SELECTED rather than drifting, which is the whole point - there is
+     no ceiling and no floor anywhere in this, so where the pit ends up is
+     decided by which machines live long enough to breed and nothing else.
+
+     There may be only one parent - the second is the nearest machine to the
+     first, and early on there is nobody else in the pit. Then it takes after
+     the one it has, which is what inheritRole already does with purpose. */
+  var psz=pb?(pa.size+pb.size)*0.5:pa.size;
+  var sz=psz*(1+(rnd()+rnd()+rnd()-1.5)*0.04);
+  machines.push(new Machine(inheritRole(pa,pb),false,px,pz,sz));
   births++;
 }
 
@@ -1879,11 +1968,17 @@ function beget(){
    So that stopping the world and starting it again is not the same thing
    as ending it. What a machine is, where it stands, what it is trying to
    do and what it has taken out of itself getting there. */
-var MFIELDS=28, MODES=["scoop","dump","toPush","push"];
+/* 29 since patch30: the last one is the size a machine was born with. The
+   array written out starts with -MFIELDS, which an array written under the
+   old format never can, because its first number is a role and a role is 0
+   or 1. So an old world still loads, at 28 fields, every machine the size
+   the world was built at. */
+var MFIELDS=29, MODES=["scoop","dump","toPush","push"];
 function packMachines(){
-  var n=machines.length, f=new Float32Array(n*MFIELDS), u;
+  var n=machines.length, f=new Float32Array(1+n*MFIELDS), u;
+  f[0]=-MFIELDS;                       /* see patch30: a role is never negative */
   for(var i=0;i<n;i++){
-    var a=machines[i], p=i*MFIELDS;
+    var a=machines[i], p=1+i*MFIELDS;
     f[p]=a.role; f[p+1]=a.x; f[p+2]=a.z; f[p+3]=a.ang;
     f[p+4]=a.sx; f[p+5]=a.sz; f[p+6]=(a.best===undefined)?0:a.best;
     u=a.hx; f[p+7]=(u===undefined)?a.x:u;  u=a.hz; f[p+8]=(u===undefined)?a.z:u;
@@ -1899,15 +1994,21 @@ function packMachines(){
     f[p+22]=(a.state==="work")?1:0;
     f[p+23]=(a.mark===undefined)?-1e9:a.mark;
     f[p+24]=a.boom; f[p+25]=a.stick; f[p+26]=a.buck; f[p+27]=a.slew;
+    f[p+28]=a.size;                    /* what it was born with */
   }
   return f;
 }
 function unpackMachines(f){
   machines.length=0;
   if(!f||!f.length) return;
-  var n=(f.length/MFIELDS)|0;
+  /* a negative first number is patch30's marker and says how wide the rows
+     are; anything else is a world saved before machines had sizes */
+  var W=28, off=0;
+  if(f[0]<0){ W=(-f[0])|0; off=1; }
+  var n=((f.length-off)/W)|0;
   for(var i=0;i<n;i++){
-    var p=i*MFIELDS, a=new Machine(f[p]|0,false,f[p+1],f[p+2]);
+    var p=off+i*W;
+    var a=new Machine(f[p]|0,false,f[p+1],f[p+2],(W>28)?f[p+28]:1);
     a.ang=f[p+3]; a.sx=f[p+4]; a.sz=f[p+5]; a.best=f[p+6];
     a.hx=f[p+7]; a.hz=f[p+8]; a.ux=f[p+9]; a.uz=f[p+10];
     a.tx=f[p+11]; a.tz=f[p+12]; a.dgx=f[p+13]; a.dgz=f[p+14];
@@ -1930,9 +2031,12 @@ function grab(n){
 }
 function snapshot(){
   var n=machines.length;
-  var ag=grab(n*12);
+  /* thirteen since patch30, the last one the machine's size. The page works
+     the stride out from the length rather than being told, so an older page
+     or an older server does not break on it. */
+  var ag=grab(n*13);
   for(var i=0;i<n;i++){
-    var a=machines[i], p=i*12;
+    var a=machines[i], p=i*13;
     ag[p]=a.x; ag[p+1]=a.z; ag[p+2]=a.ang;
     ag[p+3]=a.boom; ag[p+4]=a.stick; ag[p+5]=a.buck; ag[p+6]=a.slew;
     /* The sign says the load is being shoved rather than carried, so the
@@ -1942,6 +2046,7 @@ function snapshot(){
        frames rather than blending them, so a change of sign lands cleanly. */
     ag[p+7]=(a.mode==="push"?-1:1)*a.load/a.cap; ag[p+8]=a.role; ag[p+9]=a.flash;
     ag[p+10]=(a.role===RAISE)?a.sx:a.hx; ag[p+11]=(a.role===RAISE)?a.sz:a.hz;
+    ag[p+12]=a.size;
   }
   var hh=grab(h.length); hh.set(h);
   var ww=grab(wear.length); ww.set(wear);

@@ -218,14 +218,18 @@ setInterval(()=>{ ctx.stats(); }, 2000);
 
 /* ---- the world, packed ---- */
 function clamp16(v){ return v<-32768?-32768:(v>32767?32767:v); }
-function pack(since){
+function pack(since, wide){
+  /* wide: nineteen bytes a machine instead of seventeen, the extra two
+     being the size it was born with. Only sent when the page asks for it
+     with m=2, so a page that predates this still gets what it expects and
+     reads the packet correctly. See patch33. */
   const m = ctx.machines, n = m.length;
   let count=0;
   for(let i=0;i<changedAt.length;i++) if(changedAt[i]>since) count++;
   /* header: version u32, N u16, machines u16, then seven floats
      (cell, half, base, machine length, raise share, repose, wind),
      then visitors u32 and changed-cell count u32 = 44 bytes */
-  const head = 44, mach = n*17, cells = count*8;
+  const head = 44, mach = n*(wide?19:17), cells = count*8;
   const b = Buffer.alloc(head+mach+cells);
   let o=0;
   b.writeUInt32LE(version,o); o+=4;
@@ -260,6 +264,14 @@ function pack(since){
                  Math.max(0,Math.min(127,Math.round(a.load/a.cap*127))),o); o+=1;
     b.writeUInt8(a.role,o); o+=1;
     b.writeUInt8(Math.max(0,Math.min(255,Math.round(a.flash*255))),o); o+=1;
+    if(wide){
+      /* a logarithm, so there is no floor and no ceiling on how big or small
+         the pit's machines are allowed to become: 2^((u-32768)/4096) */
+      const sz=(a.size>0)?a.size:1;
+      let u=Math.round(32768+4096*Math.log2(sz));
+      if(u<0)u=0; else if(u>65535)u=65535;
+      b.writeUInt16LE(u,o); o+=2;
+    }
   }
   for(let i=0;i<changedAt.length;i++){
     if(changedAt[i]<=since) continue;
@@ -396,7 +408,7 @@ const server = http.createServer((req,res)=>{
   }
   if(u.pathname==="/state"){
     const since=parseInt(u.searchParams.get("since")||"0",10)||0;
-    const body=pack(since);
+    const body=pack(since, u.searchParams.get("m")==="2");
     const accept=req.headers["accept-encoding"]||"";
     res.setHeader("Content-Type","application/octet-stream");
     if(/gzip/.test(accept)){
