@@ -84,6 +84,8 @@ mkdir -p branches
 for f in "$SRC"/branches/*; do
   b=$(basename "$f")
   [ "$b" = "test.html" ] && continue
-  cp "$f" "branches/$b"
+  # -R because branches/ has folders in it now (meccano/), and a plain cp of a
+  # folder fails - which under set -e stops the whole push half way
+  cp -R "$f" "branches/"
 done
 commit_push repose-server

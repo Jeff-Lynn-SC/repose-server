@@ -1,0 +1,15 @@
+patch35 + patch36: the boom rests on the front axle; the machines are Meccano
+
+patch35: PITCH_LO was -0.80, which limited nothing - one arm pose in eleven
+had the boom down through the machine's own front axle. Now worked out from
+the axle's place and the boom's depth: -0.2152. Measured, three starts each:
+about 8% less digging on average, the starts disagreeing a lot; the shape of
+the world unchanged after 1.5 hours.
+
+patch36: the machines are drawn in Meccano - strips, girders, plates, bolts,
+real holes cut in the shader and in the shadow. Built the way a model has to
+be: axles through the chassis, wheels outside it, the body on a platform above
+the tyres. Every joint the simulation uses is where it was.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01A6387BsvpbEpQzqdq7cmxW

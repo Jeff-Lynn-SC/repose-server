@@ -845,6 +845,24 @@ var L_BASE=0.961, E_MAX=1.239, PITCH_LO=-0.80, PITCH_HI=1.15;
    boom is spent on height. That is a consequence of the geometry, not a
    decision. */
 var P_BOOMX=-0.408, P_BOOMY=0.308, P_BOOMZ=0.092;   /* the boom is on the machine's right, as every Loadall's is */
+/* How low the boom can come. It pivots at the back of the machine and the
+   front axle runs right across underneath it, so lowered far enough it comes
+   to rest on the axle and can go no further. This used to be -0.80, which
+   limited nothing: measured over an hour of a working pit, one arm position
+   in eleven had the boom down through the machine's own front axle, and the
+   lowest of them on through the platform behind it. See patch35.
+
+   The axle is where the front wheels are, AXLE_R round. The boom is two
+   strips deep and a strip is one hole-pitch wide, so its underside is one
+   pitch below its centreline - and the pitch is a ninth of the wheelbase,
+   because the axles go through holes. The model's own dimensions, which the
+   picture is built from too. The underside meets the top of the axle where
+   the axle's centre lies AXLE_R+BOOM_UNDER below the boom's centreline. */
+var AXLE_X=0.2292, AXLE_Y=0.1033, AXLE_R=0.013, BOOM_UNDER=2*AXLE_X/9;
+PITCH_LO=(function(){
+  var dx=AXLE_X-P_BOOMX, dy=AXLE_Y-P_BOOMY;
+  return Math.atan2(dy,dx)+Math.asin((AXLE_R+BOOM_UNDER)/Math.sqrt(dx*dx+dy*dy));
+})();
 /* What a 540-170 clears underneath: 0.40 m off the published dimensions, in
    machine lengths. It is what decides how low a loaded bucket can be carried,
    because a bucket held lower than the machine's own belly is caught by
