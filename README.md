@@ -38,14 +38,15 @@ should return some JSON.
 
 6. Create. You get an HTTPS address like `https://repose.onrender.com`.
 
-The free instance sleeps after fifteen minutes with nobody there and takes
-about a minute to wake. That is the rule, not a fault: Repose works when it is
-watched. The sand rests when nobody is looking.
+The free instance sleeps after fifteen minutes with nobody there. Repose does
+not let it: it asks itself for its figures every ten minutes, so the world
+goes on whether or not anybody is watching (patch38.server.js). One service
+running all month fits inside the free allowance of 750 hours.
 
 ## The world's state
 
 With `GH_TOKEN` and `GH_REPO` set, the world is committed to your repository
-every five minutes and on shutdown — visitor count, who has already been, and
+every six hours and on shutdown — visitor count, who has already been, and
 the sand itself. Free hosts have no disk that survives a restart, so this is
 what makes the world durable. It also means every version is kept: the whole
 history of the place is in the commit log, and you could read it back years

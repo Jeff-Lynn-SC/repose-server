@@ -25,7 +25,10 @@ const STATE     = process.env.STATE_FILE || path.join(__dirname, "world.json");
 const GH_TOKEN = process.env.GH_TOKEN || "";
 const GH_REPO  = process.env.GH_REPO  || "";
 const GH_PATH  = process.env.GH_PATH  || "world.json";
-const GH_EVERY = parseInt(process.env.GH_EVERY || "300000", 10);   /* five minutes */
+/* six hours: awake all the time, five minutes would put 55 MB a day into the
+   page's repository. It is also written whenever the server is stopped.
+   See patch38.server.js. */
+const GH_EVERY = parseInt(process.env.GH_EVERY || "21600000", 10);
 /* Set RESET_KEY to be able to wipe the world from a URL. Leave it unset and
    the endpoint does not exist. */
 const RESET_KEY = process.env.RESET_KEY || "";
@@ -90,13 +93,15 @@ async function ghPut(obj){
 
    Format 1 — sand only — is still read, so an old world is not lost; it
    simply starts its machines again the one last time. */
-const MF=28;
+/* There used to be a constant here, MF=28, the width of a machine's row
+   before patch30. Nothing is worked out from a row width any more. See
+   patch37.server.js. */
 function snapshot(){
   const N=ctx.N, n=N*N;
   const head=Buffer.alloc(8);
   head.writeUInt32LE(N,0);
   const mf=ctx.packMachines();
-  head.writeUInt32LE((mf.length/MF)|0,4);
+  head.writeUInt32LE(ctx.machines.length,4);   /* for a person reading it; the reader does not use it */
   const sand=Buffer.from(new Uint8Array(ctx.h.buffer,ctx.h.byteOffset,n*4));
   const was=Buffer.alloc(n*2);
   for(let i=0;i<n;i++) was.writeInt16LE(Math.max(-32768,Math.min(32767,Math.round(ctx.h0[i]*100))),i*2);
@@ -118,13 +123,16 @@ function applySaved(j){
     try{
       const b=zlib.gunzipSync(Buffer.from(j.world,"base64"));
       const N=b.readUInt32LE(0), nm=b.readUInt32LE(4), n=N*N;
-      if(N===ctx.N && b.length>=8+n*7+nm*MF*4){
+      if(N===ctx.N && b.length>=8+n*7){
         let o=8;
         for(let i=0;i<n;i++) ctx.h[i]=b.readFloatLE(o+i*4);        o+=n*4;
         for(let i=0;i<n;i++) ctx.h0[i]=b.readInt16LE(o+i*2)/100;   o+=n*2;
         for(let i=0;i<n;i++) ctx.rock[i]=b[o+i]/255;               o+=n;
-        if(nm>0){
-          const mf=new Float32Array(nm*MF);
+        /* the machines are the last thing in the block, so everything left
+           is the machines - all of it, however wide a row has become */
+        const nf=((b.length-o)/4)|0;
+        if(nf>0){
+          const mf=new Float32Array(nf);
           for(let i=0;i<mf.length;i++) mf[i]=b.readFloatLE(o+i*4);
           ctx.unpackMachines(mf);
         }
@@ -218,7 +226,9 @@ setInterval(()=>{ ctx.stats(); }, 2000);
 
 /* ---- the world, packed ---- */
 function clamp16(v){ return v<-32768?-32768:(v>32767?32767:v); }
-function pack(since, wide){
+function pack(since, lvl){
+  /* lvl 3: twenty-six bytes, adding how the machine was built and how worn
+     it is. See patch37.server.js. */
   /* wide: nineteen bytes a machine instead of seventeen, the extra two
      being the size it was born with. Only sent when the page asks for it
      with m=2, so a page that predates this still gets what it expects and
@@ -229,7 +239,7 @@ function pack(since, wide){
   /* header: version u32, N u16, machines u16, then seven floats
      (cell, half, base, machine length, raise share, repose, wind),
      then visitors u32 and changed-cell count u32 = 44 bytes */
-  const head = 44, mach = n*(wide?19:17), cells = count*8;
+  const head = 44, mach = n*(lvl>=3?26:(lvl>=2?19:17)), cells = count*8;
   const b = Buffer.alloc(head+mach+cells);
   let o=0;
   b.writeUInt32LE(version,o); o+=4;
@@ -264,13 +274,23 @@ function pack(since, wide){
                  Math.max(0,Math.min(127,Math.round(a.load/a.cap*127))),o); o+=1;
     b.writeUInt8(a.role,o); o+=1;
     b.writeUInt8(Math.max(0,Math.min(255,Math.round(a.flash*255))),o); o+=1;
-    if(wide){
+    if(lvl>=2){
       /* a logarithm, so there is no floor and no ceiling on how big or small
          the pit's machines are allowed to become: 2^((u-32768)/4096) */
       const sz=(a.size>0)?a.size:1;
       let u=Math.round(32768+4096*Math.log2(sz));
       if(u<0)u=0; else if(u>65535)u=65535;
       b.writeUInt16LE(u,o); o+=2;
+    }
+    if(lvl>=3){
+      /* which joints were done wrong is a function of the seed and how
+         careful the builder was; the page asks the same function */
+      const sd=(a.seed>>>0)&0xFFFFFF;
+      b.writeUInt16LE(sd&0xFFFF,o); o+=2;
+      b.writeUInt8(sd>>>16,o); o+=1;
+      const e=a.err;
+      b.writeInt16LE(clamp16(Math.round(Math.log(e/(1-e))*1024)),o); o+=2;
+      b.writeUInt16LE(Math.max(0,Math.min(65535,Math.round(a.dmg*65535))),o); o+=2;
     }
   }
   for(let i=0;i<changedAt.length;i++){
@@ -408,7 +428,8 @@ const server = http.createServer((req,res)=>{
   }
   if(u.pathname==="/state"){
     const since=parseInt(u.searchParams.get("since")||"0",10)||0;
-    const body=pack(since, u.searchParams.get("m")==="2");
+    const mq=u.searchParams.get("m"), jq=u.searchParams.get("j");
+    const body=pack(since, mq==="2"?(jq==="1"?3:2):1);
     const accept=req.headers["accept-encoding"]||"";
     res.setHeader("Content-Type","application/octet-stream");
     if(/gzip/.test(accept)){
@@ -420,3 +441,19 @@ const server = http.createServer((req,res)=>{
   res.statusCode=404; res.end("repose");
 });
 server.listen(PORT,()=>console.log("repose listening on "+PORT));
+
+/* ---- staying awake. See patch38.server.js. ----
+   Render stops a free service after fifteen minutes with no request, and
+   then the world stops too. Jeff: "Keep it awake, free". So it asks itself
+   for its figures every ten minutes - a request like any other. /stats,
+   because it changes nothing; never /join with an id, which counts as a
+   visitor and is given a machine. Render tells a service its own address in
+   RENDER_EXTERNAL_URL; run anywhere else it has no address and does not
+   need one. */
+const SELF = process.env.RENDER_EXTERNAL_URL || process.env.SELF_URL || "";
+if(SELF){
+  console.log("keeping awake: asking "+SELF+"/stats every ten minutes");
+  setInterval(()=>{
+    fetch(SELF+"/stats",{headers:{"User-Agent":"repose-awake"}}).catch(e=>console.log("could not ask myself:",e.message));
+  }, 10*60*1000);
+} else console.log("no address of my own, so not keeping awake");

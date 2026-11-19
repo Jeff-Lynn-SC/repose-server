@@ -1,15 +1,18 @@
-patch35 + patch36: the boom rests on the front axle; the machines are Meccano
+patch37 + patch38: joints built not quite right and working loose; the saved world no longer loses its newest machine; the world stays awake
 
-patch35: PITCH_LO was -0.80, which limited nothing - one arm pose in eleven
-had the boom down through the machine's own front axle. Now worked out from
-the axle's place and the boom's depth: -0.2152. Measured, three starts each:
-about 8% less digging on average, the starts disagreeing a lot; the shape of
-the world unchanged after 1.5 hours.
+patch37: every machine has a chance per joint of a mistake (one or two in a
+model, Jeff's figure) and a seed that decides which; children inherit the
+chance like size. Bad working joints wear twice as fast, spread over the
+machine. The picture shows wrong holes, single bolts sagging, and all joints
+working loose with wear - same function, same numbers, over the wire with j=1.
 
-patch36: the machines are drawn in Meccano - strips, girders, plates, bolts,
-real holes cut in the shader and in the shadow. Built the way a model has to
-be: axles through the chassis, wheels outside it, the body on a platform above
-the tyres. Every joint the simulation uses is where it was.
+patch37.server.js: the save reader assumed a 28-wide machine row and has
+dropped the newest machine on every restart since 28 September. It now reads
+the whole block.
+
+patch38.server.js: the free server asks itself for /stats every ten minutes
+so it never sleeps, and writes the world to GitHub every six hours and on
+every stop instead of every five minutes.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01A6387BsvpbEpQzqdq7cmxW

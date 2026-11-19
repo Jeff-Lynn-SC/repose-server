@@ -446,7 +446,39 @@ var RAISE=0, FILL=1;
 var COL_A=[1.55,.62,.22], COL_B=[.30,1.25,1.15], COL_N=[1,1,1];
 
 var gateX=0, gateZ=0, spreadR=1;
-function Machine(role,atGate,px,pz,size){
+/* ---- how well it was put together. See patch37. ----
+   A machine is a Meccano model, and a child built it. Jeff: "i like the idea
+   that the bolts could become loose over time or that some arent built quite
+   right". How many does a child get wrong? "One or two" of the sixty-six
+   joints the first model had: ERR0 is that, as a chance per joint.
+
+   Which joints are wrong is decided when the machine is made and never
+   changes. It is a fact about this machine, so it lives here in the world,
+   and the picture asks the same question of the same numbers: jointBad is
+   word for word the same function in the page, and must stay so.
+
+   JOINTS is how many there are, in the order the model is put together:
+   chassis, body, boom, inner section, bucket. The page checks the number
+   against the model it actually builds. */
+var JOINTS=92, JOINTS_UNDER=12, JOINTS_BODY=49;
+var JOINTS_WORKING=JOINTS-JOINTS_BODY;
+var ERR0=1.5/66;
+function jointBad(seed,err,j){
+  var x=Math.imul((seed|0)^0x9E3779B9,0x85EBCA6B)^Math.imul(j+1,0xC2B2AE35);
+  x^=x>>>16; x=Math.imul(x,0x7FEB352D); x^=x>>>15; x=Math.imul(x,0x846CA68B); x^=x>>>16;
+  return (x>>>0)/4294967296<err;
+}
+/* the joints that carry the work: the chassis and the arm. A body strip done
+   wrong rattles; it wears nothing out. */
+function weakJoints(seed,err){
+  var n=0;
+  for(var j=0;j<JOINTS;j++){
+    if(j>=JOINTS_UNDER && j<JOINTS_UNDER+JOINTS_BODY) continue;
+    if(jointBad(seed,err,j)) n++;
+  }
+  return n;
+}
+function Machine(role,atGate,px,pz,size,err,seed){
   this.role=role; this.dmg=0; this.crowd=0;
   /* ---- the one number it is born with ----
      Everything physical about this machine follows from it and nothing else
@@ -457,6 +489,11 @@ function Machine(role,atGate,px,pz,size){
   this.size=(size>0)?size:1;
   this.len=machLen*this.size;
   this.cut=CUT_MAX*this.size;
+  /* and how carefully it was put together, which is also decided once.
+     See patch37. */
+  this.err=(err>0&&err<1)?err:ERR0;
+  this.seed=(seed>=0)?(seed|0):((rnd()*16777216)|0);
+  this.weak=weakJoints(this.seed,this.err);
   if(px!==undefined){ this.x=px; this.z=pz; }
   else if(atGate){
     var ga=rnd()*6.2832, gr=Math.sqrt(rnd())*spreadR;
@@ -1357,7 +1394,12 @@ Machine.prototype.step=function(dt,self){
   var duty=(able>0&&dt>0)?(this.work/dt)/able:0;
   this.work=0;
   if(duty>12) duty=12;                   /* nothing real is twelve times flat out */
-  this.dmg+=dt*WEAR*(IDLE+(1-IDLE)*duty);
+  /* A joint done wrong wears about twice as fast as a good one - the same
+     severe-application figure as hard ground - and its wear is shared by
+     the machine's working joints. Jeff chose that over the weakest joint
+     deciding: "Spread over the machine". One bad joint in the forty-three
+     that carry the work is a life about two percent shorter. patch37. */
+  this.dmg+=dt*WEAR*(IDLE+(1-IDLE)*duty)*(1+this.weak/JOINTS_WORKING);
 
   trackGround(this,dt);
 
@@ -2020,7 +2062,13 @@ function beget(){
      the one it has, which is what inheritRole already does with purpose. */
   var psz=pb?(pa.size+pb.size)*0.5:pa.size;
   var sz=psz*(1+(rnd()+rnd()+rnd()-1.5)*0.04);
-  machines.push(new Machine(inheritRole(pa,pb),false,px,pz,sz));
+  /* and how carefully it was built, the same way: the average of its parents
+     and a little either way. In log-odds, because a chance cannot pass nought
+     or one, and in log-odds nothing has to stop it. See patch37. */
+  var lgt=function(e){ return Math.log(e/(1-e)); };
+  var pe=pb?(lgt(pa.err)+lgt(pb.err))*0.5:lgt(pa.err);
+  var er=1/(1+Math.exp(-(pe+(rnd()+rnd()+rnd()-1.5)*0.04)));
+  machines.push(new Machine(inheritRole(pa,pb),false,px,pz,sz,er));
   births++;
 }
 
@@ -2032,8 +2080,11 @@ function beget(){
    array written out starts with -MFIELDS, which an array written under the
    old format never can, because its first number is a role and a role is 0
    or 1. So an old world still loads, at 28 fields, every machine the size
-   the world was built at. */
-var MFIELDS=29, MODES=["scoop","dump","toPush","push"];
+   the world was built at.
+   31 since patch37: how carefully it was built, and the seed that says which
+   joints went wrong. A row narrower than that is a machine from before, and
+   it is given ERR0 and a seed as it loads. */
+var MFIELDS=31, MODES=["scoop","dump","toPush","push"];
 function packMachines(){
   var n=machines.length, f=new Float32Array(1+n*MFIELDS), u;
   f[0]=-MFIELDS;                       /* see patch30: a role is never negative */
@@ -2054,7 +2105,8 @@ function packMachines(){
     f[p+22]=(a.state==="work")?1:0;
     f[p+23]=(a.mark===undefined)?-1e9:a.mark;
     f[p+24]=a.boom; f[p+25]=a.stick; f[p+26]=a.buck; f[p+27]=a.slew;
-    f[p+28]=a.size;                    /* what it was born with */
+    f[p+28]=a.size;
+    f[p+29]=a.err; f[p+30]=a.seed;     /* patch37: a 24-bit seed is exact in a float */                    /* what it was born with */
   }
   return f;
 }
@@ -2068,7 +2120,8 @@ function unpackMachines(f){
   var n=((f.length-off)/W)|0;
   for(var i=0;i<n;i++){
     var p=off+i*W;
-    var a=new Machine(f[p]|0,false,f[p+1],f[p+2],(W>28)?f[p+28]:1);
+    var a=new Machine(f[p]|0,false,f[p+1],f[p+2],(W>28)?f[p+28]:1,
+                      (W>30)?f[p+29]:0,(W>30)?f[p+30]:-1);
     a.ang=f[p+3]; a.sx=f[p+4]; a.sz=f[p+5]; a.best=f[p+6];
     a.hx=f[p+7]; a.hz=f[p+8]; a.ux=f[p+9]; a.uz=f[p+10];
     a.tx=f[p+11]; a.tz=f[p+12]; a.dgx=f[p+13]; a.dgz=f[p+14];
@@ -2091,12 +2144,13 @@ function grab(n){
 }
 function snapshot(){
   var n=machines.length;
-  /* thirteen since patch30, the last one the machine's size. The page works
-     the stride out from the length rather than being told, so an older page
-     or an older server does not break on it. */
-  var ag=grab(n*13);
+  /* thirteen since patch30, the last one the machine's size; sixteen since
+     patch37, adding the seed, how carefully it was built, and how worn it
+     is. The page works the stride out from the length rather than being
+     told, so an older page or an older server does not break on it. */
+  var ag=grab(n*16);
   for(var i=0;i<n;i++){
-    var a=machines[i], p=i*13;
+    var a=machines[i], p=i*16;
     ag[p]=a.x; ag[p+1]=a.z; ag[p+2]=a.ang;
     ag[p+3]=a.boom; ag[p+4]=a.stick; ag[p+5]=a.buck; ag[p+6]=a.slew;
     /* The sign says the load is being shoved rather than carried, so the
@@ -2107,6 +2161,7 @@ function snapshot(){
     ag[p+7]=(a.mode==="push"?-1:1)*a.load/a.cap; ag[p+8]=a.role; ag[p+9]=a.flash;
     ag[p+10]=(a.role===RAISE)?a.sx:a.hx; ag[p+11]=(a.role===RAISE)?a.sz:a.hz;
     ag[p+12]=a.size;
+    ag[p+13]=a.seed; ag[p+14]=a.err; ag[p+15]=a.dmg;
   }
   var hh=grab(h.length); hh.set(h);
   var ww=grab(wear.length); ww.set(wear);
